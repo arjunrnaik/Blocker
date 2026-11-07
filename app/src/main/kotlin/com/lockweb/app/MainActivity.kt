@@ -79,7 +79,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         LockWebDeviceAdminReceiver.isActive(this)
-        LockWebVpnService.refreshAlwaysOnState()
+        LockWebVpnService.refreshAlwaysOnState(this)
     }
 
     private fun requestNotificationPermissionIfNeeded() {

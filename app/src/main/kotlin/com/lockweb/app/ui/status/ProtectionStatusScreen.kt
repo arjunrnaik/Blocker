@@ -82,7 +82,7 @@ fun ProtectionStatusScreen(
                 isBatteryExempt = powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
                 isPrivateDnsActive = checkPrivateDns()
                 LockWebDeviceAdminReceiver.isActive(context)
-                LockWebVpnService.refreshAlwaysOnState()
+                LockWebVpnService.refreshAlwaysOnState(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)

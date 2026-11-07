@@ -83,7 +83,29 @@ class LockWebVpnService : VpnService() {
 
         private var activeInstance: LockWebVpnService? = null
 
-        fun refreshAlwaysOnState() {
+        fun refreshAlwaysOnState(context: Context? = null) {
+            val ctx = context ?: activeInstance?.applicationContext
+            if (ctx != null) {
+                try {
+                    val alwaysOnApp = android.provider.Settings.Secure.getString(ctx.contentResolver, "always_on_vpn_app")
+                    val isAlwaysOnSet = alwaysOnApp == ctx.packageName
+                    val lockdownVal = android.provider.Settings.Secure.getInt(ctx.contentResolver, "always_on_vpn_lockdown", 0)
+                    val isLockdownSet = isAlwaysOnSet && lockdownVal == 1
+
+                    val serviceAlwaysOn = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        activeInstance?.isAlwaysOn ?: false
+                    } else false
+
+                    val serviceLockdown = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        activeInstance?.isLockdownEnabled ?: false
+                    } else false
+
+                    _isAlwaysOn.value = isAlwaysOnSet || serviceAlwaysOn
+                    _isLockdownEnabled.value = isLockdownSet || serviceLockdown
+                    return
+                } catch (_: Exception) {}
+            }
+
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                 activeInstance?.let { service ->
                     _isAlwaysOn.value = service.isAlwaysOn
