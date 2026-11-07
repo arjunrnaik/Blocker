@@ -16,7 +16,6 @@ import com.lockweb.corefilter.DnsFilter
 import com.lockweb.corefilter.RuleMode
 import com.lockweb.corefilter.RuleSet
 import com.lockweb.corefilter.dns.DnsCache
-import com.lockweb.corefilter.dns.DnsConstants
 import com.lockweb.corefilter.dns.DnsParser
 import com.lockweb.corefilter.dns.DnsParseResult
 import com.lockweb.corefilter.dns.DnsRCode
@@ -342,7 +341,8 @@ class LockWebVpnService : VpnService() {
                     dstIp = byteArrayOf(10, 111, 222.toByte(), 1),
                     srcPort = 54321,
                     dstPort = 53,
-                    payload = syntheticQuery
+                    payload = syntheticQuery,
+                    ipHeaderLength = 20
                 ),
                 syntheticQuery
             )
@@ -371,7 +371,8 @@ class LockWebVpnService : VpnService() {
                         dstIp = byteArrayOf(1, 1, 1, 1),
                         srcPort = 54321,
                         dstPort = 53,
-                        payload = pingQuery
+                        payload = pingQuery,
+                        ipHeaderLength = 20
                     )
                     val response = resolver.resolve(pingQuery, fakePacket)
                     if (response.isEmpty() || (response.size >= 4 && (response[3].toInt() and 0x0F) == DnsRCode.SERVFAIL)) {
