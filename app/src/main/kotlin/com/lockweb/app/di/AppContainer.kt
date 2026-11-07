@@ -6,6 +6,7 @@ import com.lockweb.app.data.AppDatabase
 import com.lockweb.app.data.RuleRepository
 import com.lockweb.app.data.SettingsRepository
 import com.lockweb.app.data.settingsDataStore
+import com.lockweb.app.guard.GuardSessionManager
 import com.lockweb.app.security.AndroidKeyStoreVault
 import com.lockweb.app.security.AuthManager
 import com.lockweb.app.security.FileCredentialStorage
@@ -69,5 +70,9 @@ class AppContainer(private val context: Context) {
             rateLimiter = rateLimiter,
             recoveryCodeManager = recoveryCodeManager
         )
+    }
+
+    val guardSessionManager: GuardSessionManager by lazy {
+        GuardSessionManager.instance
     }
 }

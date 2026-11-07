@@ -22,6 +22,7 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
 
     companion object {
         val KEY_ADULT_BLOCKLIST_ENABLED = booleanPreferencesKey("adult_blocklist_enabled")
+        val KEY_ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         val KEY_PRIMARY_DNS = stringPreferencesKey("primary_dns")
         val KEY_FALLBACK_DNS = stringPreferencesKey("fallback_dns")
         val KEY_APP_THEME = stringPreferencesKey("app_theme")
@@ -41,6 +42,16 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
     val isAdultBlocklistEnabled: Flow<Boolean> = dataStore.data.map { prefs ->
         prefs[KEY_ADULT_BLOCKLIST_ENABLED] ?: false
     }.distinctUntilChanged()
+
+    val isOnboardingCompleted: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_ONBOARDING_COMPLETED] ?: false
+    }.distinctUntilChanged()
+
+    suspend fun completeOnboarding() {
+        dataStore.edit { prefs ->
+            prefs[KEY_ONBOARDING_COMPLETED] = true
+        }
+    }
 
     /**
      * PERMANENTLY enables the adult blocklist.

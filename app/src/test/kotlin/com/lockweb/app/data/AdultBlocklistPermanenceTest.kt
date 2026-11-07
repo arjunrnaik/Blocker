@@ -51,4 +51,10 @@ class AdultBlocklistPermanenceTest {
             )
         }
     }
+
+    @Test
+    fun settingsRepository_declaresCompleteOnboarding() {
+        val method = SettingsRepository::class.java.declaredMethods.find { it.name.startsWith("completeOnboarding") }
+        assertNotNull("completeOnboarding must exist", method)
+    }
 }
