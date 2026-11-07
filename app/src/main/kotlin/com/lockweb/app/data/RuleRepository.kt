@@ -55,14 +55,7 @@ class RuleRepository(
         val parseResult = DomainNormalizer.parseInput(rawInput)
         val normalizedHost = when (parseResult) {
             is ParseResult.Success -> parseResult.normalizedHost
-            is ParseResult.InvalidCharacters -> return@withContext AddRuleResult.InvalidDomain("Invalid characters in domain")
-            is ParseResult.EmptyLabel -> return@withContext AddRuleResult.InvalidDomain("Domain cannot contain empty labels")
-            is ParseResult.LabelTooLong -> return@withContext AddRuleResult.InvalidDomain("Domain label exceeds 63 characters")
-            is ParseResult.DomainTooLong -> return@withContext AddRuleResult.InvalidDomain("Domain exceeds 253 characters")
-            is ParseResult.SingleLabelDomain -> return@withContext AddRuleResult.InvalidDomain("Single-label domains are not allowed")
-            is ParseResult.PublicSuffixOnly -> return@withContext AddRuleResult.InvalidDomain("Bare public suffixes cannot be blocked")
-            is ParseResult.IpAddressLiteral -> return@withContext AddRuleResult.InvalidDomain("IP address literals are not supported")
-            is ParseResult.MalformedInput -> return@withContext AddRuleResult.InvalidDomain("Malformed URL or domain: ${parseResult.reason}")
+            is ParseResult.Failure -> return@withContext AddRuleResult.InvalidDomain(parseResult.reason)
         }
 
         val existing = blockRuleDao.findByHost(normalizedHost)
@@ -95,7 +88,7 @@ class RuleRepository(
 
     suspend fun recompileAndPush() = withContext(Dispatchers.IO) {
         val userEntities = blockRuleDao.getAllRulesList()
-        val adultEnabled = kotlinx.coroutines.flow.first(settingsRepository.isAdultBlocklistEnabled)
+        val adultEnabled = settingsRepository.isAdultBlocklistEnabled.first()
         compileAndPush(userEntities, adultEnabled)
     }
 

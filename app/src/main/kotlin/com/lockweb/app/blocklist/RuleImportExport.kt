@@ -2,7 +2,7 @@ package com.lockweb.app.blocklist
 
 import com.lockweb.app.data.BlockRuleEntity
 import com.lockweb.corefilter.DomainNormalizer
-import com.lockweb.corefilter.NormalizationResult
+import com.lockweb.corefilter.ParseResult
 import com.lockweb.corefilter.RuleMode
 import org.json.JSONArray
 import org.json.JSONObject
@@ -86,9 +86,9 @@ object RuleImportExport {
             }
 
             // Strictly validate and normalize using DomainNormalizer
-            val normResult = DomainNormalizer.normalize(domainInput)
-            val normalizedHost = when (normResult) {
-                is NormalizationResult.Success -> normResult.normalizedHost
+            val parseResult = DomainNormalizer.parseInput(domainInput)
+            val normalizedHost = when (parseResult) {
+                is ParseResult.Success -> parseResult.normalizedHost
                 else -> {
                     skippedCount++
                     continue
