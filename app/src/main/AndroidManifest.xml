@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
+        android:name=".LockWebApplication"
         android:allowBackup="false"
         android:icon="@android:drawable/sym_def_app_icon"
         android:label="LockWeb"

@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -16,6 +17,10 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ksp {
+            arg("room.schemaLocation", "$projectDir/schemas")
+        }
     }
 
     signingConfigs {
@@ -60,6 +65,17 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
 
+    // Room Database
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+
+    // DataStore Preferences
+    implementation(libs.androidx.datastore.preferences)
+
+    // WorkManager
+    implementation(libs.androidx.work.runtime.ktx)
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -72,4 +88,5 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
