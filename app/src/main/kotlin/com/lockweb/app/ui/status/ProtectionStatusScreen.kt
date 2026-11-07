@@ -30,21 +30,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import com.lockweb.app.admin.LockWebDeviceAdminReceiver
 import com.lockweb.app.health.ProtectionHealth
 import com.lockweb.app.vpn.LockWebVpnService
@@ -57,39 +50,14 @@ fun ProtectionStatusScreen(
     onStopVpn: () -> Unit
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as? PowerManager }
+    val isBatteryExempt = powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
 
-    fun checkPrivateDns(): Boolean {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-        val activeNetwork = cm?.activeNetwork
-        val lp: LinkProperties? = cm?.getLinkProperties(activeNetwork)
-        val privateDnsServer = lp?.privateDnsServerName
-        return !privateDnsServer.isNullOrBlank()
-    }
-
-    var isBatteryExempt by remember {
-        mutableStateOf(powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false)
-    }
-
-    var isPrivateDnsActive by remember {
-        mutableStateOf(checkPrivateDns())
-    }
-
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                isBatteryExempt = powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
-                isPrivateDnsActive = checkPrivateDns()
-                LockWebDeviceAdminReceiver.isActive(context)
-                LockWebVpnService.refreshAlwaysOnState(context)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
+    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+    val activeNetwork = cm?.activeNetwork
+    val lp: LinkProperties? = cm?.getLinkProperties(activeNetwork)
+    val privateDnsServer = lp?.privateDnsServerName
+    val isPrivateDnsActive = !privateDnsServer.isNullOrBlank()
 
     Scaffold(
         modifier = Modifier.fillMaxSize()
