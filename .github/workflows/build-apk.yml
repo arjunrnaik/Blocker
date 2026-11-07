@@ -32,6 +32,13 @@ jobs:
       - name: Run Unit Tests & Build Debug APK
         run: ./gradlew test assembleDebug --stacktrace
 
+      - name: Upload Test Results on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: "**/build/reports/**"
+
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
