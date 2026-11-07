@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lockweb.app.LockWebApplication
+import com.lockweb.app.blocklist.ImportResult
 import com.lockweb.app.blocklist.RuleImportExport
 import com.lockweb.app.ui.components.AuthGateDialog
 import kotlinx.coroutines.launch
@@ -278,7 +279,7 @@ fun SettingsScreen(
                     "export" -> {
                         scope.launch {
                             val rules = app.container.database.blockRuleDao().getAllRulesList()
-                            exportedJson = RuleImportExport.exportRules(rules)
+                            exportedJson = RuleImportExport.exportToJson(rules)
                             showExportDialog = true
                         }
                     }
@@ -389,16 +390,16 @@ fun SettingsScreen(
             },
             confirmButton = {
                 Button(onClick = {
-                    when (val res = RuleImportExport.importRules(importJsonInput)) {
-                        is RuleImportExport.ImportResult.Success -> {
+                    when (val res = RuleImportExport.importFromJson(importJsonInput)) {
+                        is ImportResult.Success -> {
                             scope.launch {
-                                app.container.ruleRepository.importRules(res.rules)
-                                Toast.makeText(context, "Imported ${res.importedCount} rules successfully", Toast.LENGTH_SHORT).show()
+                                app.container.ruleRepository.importRules(res.rulesToAdd)
+                                Toast.makeText(context, "Imported ${res.rulesToAdd.size} rules successfully (${res.skippedCount} skipped)", Toast.LENGTH_SHORT).show()
                                 showImportDialog = false
                             }
                         }
-                        is RuleImportExport.ImportResult.Failure -> {
-                            importError = res.error
+                        is ImportResult.Error -> {
+                            importError = res.reason
                         }
                     }
                 }) {
