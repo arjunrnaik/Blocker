@@ -5,6 +5,10 @@ import com.lockweb.app.blocklist.OisdBlocklistUpdateWorker
 import com.lockweb.app.di.AppContainer
 import com.lockweb.app.guard.GuardWatchdog
 import com.lockweb.app.guard.GuardWatchdogWorker
+import com.lockweb.corefilter.RuleMode
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class LockWebApplication : Application() {
 
@@ -24,5 +28,15 @@ class LockWebApplication : Application() {
 
         // Copy snapshot asset if missing on first launch
         container.blocklistManager.ensureSnapshotCopied()
+
+        // Initialize persistent rules repository and seed initial verification rule if database is empty
+        CoroutineScope(Dispatchers.IO).launch {
+            val dao = container.database.blockRuleDao()
+            if (dao.count() == 0) {
+                container.ruleRepository.addRule("reddit.com", RuleMode.SUBDOMAINS, note = "Default verification rule")
+            } else {
+                container.ruleRepository.recompileAndPush()
+            }
+        }
     }
 }

@@ -42,7 +42,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
+import com.lockweb.app.data.AddRuleResult
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -151,10 +154,13 @@ fun VpnDebugScreen(
         initial = ProtectionHealth(vpnStatus = status, isGuardRunning = guardRunning)
     )
 
-    val testRules = remember {
-        mutableStateListOf("reddit.com")
-    }
+    val app = context.applicationContext as LockWebApplication
+    val ruleRepository = app.container.ruleRepository
+    val userRules by ruleRepository.userRules.collectAsState(initial = emptyList())
+    val coroutineScope = rememberCoroutineScope()
+
     var newDomainInput by remember { mutableStateOf("") }
+    var addErrorMessage by remember { mutableStateOf<String?>(null) }
     val scrollState = rememberScrollState()
 
     Scaffold(
@@ -267,7 +273,7 @@ fun VpnDebugScreen(
                 }
             }
 
-            // Rule hot-swap test editor
+            // Persistent Block Rules Card (Room SQLite Database)
             Card(
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -278,32 +284,55 @@ fun VpnDebugScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        text = "Active Block Rules (In-Memory Hot-Swap)",
+                        text = "Active Block Rules (Room Database)",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold
                     )
 
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        testRules.forEach { domain ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = domain,
-                                    fontFamily = FontFamily.Monospace,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    text = "SUBDOMAINS",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
+                    if (userRules.isEmpty()) {
+                        Text(
+                            text = "No custom rules yet. Add a domain below.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            userRules.forEach { rule ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = rule.normalizedHost,
+                                            fontFamily = FontFamily.Monospace,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Text(
+                                            text = rule.mode,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                ruleRepository.deleteRule(rule.id)
+                                            }
+                                        },
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.error
+                                        )
+                                    ) {
+                                        Text("Delete", fontSize = 11.sp)
+                                    }
+                                }
                             }
                         }
                     }
@@ -315,28 +344,46 @@ fun VpnDebugScreen(
                     ) {
                         OutlinedTextField(
                             value = newDomainInput,
-                            onValueChange = { newDomainInput = it },
-                            placeholder = { Text("e.g. twitter.com") },
+                            onValueChange = {
+                                newDomainInput = it
+                                addErrorMessage = null
+                            },
+                            placeholder = { Text("e.g. www.zedge.net") },
                             modifier = Modifier.weight(1f),
                             singleLine = true
                         )
                         Button(
                             onClick = {
                                 val trimmed = newDomainInput.trim().lowercase()
-                                if (trimmed.isNotEmpty() && !testRules.contains(trimmed)) {
-                                    testRules.add(trimmed)
-                                    val compiled = RuleSet.compile(
-                                        userRules = testRules.map { BlockRule(it, RuleMode.SUBDOMAINS) },
-                                        blocklistDomains = emptyList()
-                                    ).ruleSet
-                                    LockWebVpnService.updateRuleSet(compiled)
-                                    newDomainInput = ""
+                                if (trimmed.isNotEmpty()) {
+                                    coroutineScope.launch {
+                                        when (val res = ruleRepository.addRule(trimmed)) {
+                                            is AddRuleResult.Success -> {
+                                                newDomainInput = ""
+                                                addErrorMessage = null
+                                            }
+                                            is AddRuleResult.Duplicate -> {
+                                                addErrorMessage = "Domain is already blocked."
+                                            }
+                                            is AddRuleResult.InvalidDomain -> {
+                                                addErrorMessage = "Invalid: ${res.reason}"
+                                            }
+                                        }
+                                    }
                                 }
                             },
                             enabled = newDomainInput.isNotBlank()
                         ) {
                             Text("Add")
                         }
+                    }
+
+                    if (addErrorMessage != null) {
+                        Text(
+                            text = addErrorMessage ?: "",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
             }

@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.ParcelFileDescriptor
+import com.lockweb.app.LockWebApplication
 import com.lockweb.app.MainActivity
 import com.lockweb.corefilter.AtomicBlockCounter
 import com.lockweb.corefilter.BlockRule
@@ -124,6 +125,11 @@ class LockWebVpnService : VpnService() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        (application as? LockWebApplication)?.container?.let { container ->
+            serviceScope.launch {
+                container.ruleRepository.recompileAndPush()
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
