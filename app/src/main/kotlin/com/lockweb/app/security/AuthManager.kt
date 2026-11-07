@@ -75,6 +75,10 @@ class AuthManager(
 
     fun isInitialized(): Boolean = storage.hasCredentials()
 
+    fun checkRateLimit(): RateLimiter.Status = rateLimiter.checkStatus()
+
+    fun verifyPassword(password: String): AuthResult = authenticate(password.toCharArray())
+
     fun isAuthenticated(): Boolean {
         val current = _authState.value
         if (current is AuthState.Authenticated) {
