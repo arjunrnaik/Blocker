@@ -1,6 +1,7 @@
 package com.lockweb.app.ui.settings
 
 import android.widget.Toast
+import com.lockweb.app.admin.LockWebDeviceAdminReceiver
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -427,9 +428,10 @@ fun SettingsScreen(
                 Button(
                     onClick = {
                         onStopProtection()
+                        LockWebDeviceAdminReceiver.removeAdmin(context)
                         app.container.guardSessionManager.grantTemporaryAccess(60_000L)
                         showDisableAllDialog = false
-                        Toast.makeText(context, "Protection paused for 60 seconds", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Protection paused & Admin removed for 60 seconds", Toast.LENGTH_LONG).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {

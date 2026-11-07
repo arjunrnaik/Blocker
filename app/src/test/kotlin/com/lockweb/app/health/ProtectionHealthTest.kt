@@ -12,10 +12,22 @@ class ProtectionHealthTest {
     fun testFullyProtected_whenBothVpnActiveAndGuardRunning() {
         val health = ProtectionHealth(
             vpnStatus = VpnStatus.Active,
-            isGuardRunning = true
+            isGuardRunning = true,
+            isDeviceAdminActive = true
         )
         assertTrue(health.isFullyProtected)
         assertEquals(OverallProtectionLevel.PROTECTED, health.overallLevel)
+    }
+
+    @Test
+    fun testDegraded_whenDeviceAdminInactive() {
+        val health = ProtectionHealth(
+            vpnStatus = VpnStatus.Active,
+            isGuardRunning = true,
+            isDeviceAdminActive = false
+        )
+        assertTrue(health.isFullyProtected)
+        assertEquals(OverallProtectionLevel.DEGRADED, health.overallLevel)
     }
 
     @Test

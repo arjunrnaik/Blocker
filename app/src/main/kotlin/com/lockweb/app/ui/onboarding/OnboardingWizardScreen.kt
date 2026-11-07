@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.foundation.background
+import com.lockweb.app.admin.LockWebDeviceAdminReceiver
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -170,6 +171,9 @@ fun OnboardingWizardScreen(
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
                             }
                             context.startActivity(intent)
+                        },
+                        onActivateDeviceAdmin = {
+                            context.startActivity(LockWebDeviceAdminReceiver.createActivationIntent(context))
                         },
                         onOpenBatteryOpt = {
                             val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
@@ -486,6 +490,7 @@ private fun ComponentActivationStep(
     health: ProtectionHealth,
     onRequestVpnConsent: () -> Unit,
     onOpenAccessibility: () -> Unit,
+    onActivateDeviceAdmin: () -> Unit,
     onOpenBatteryOpt: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -549,7 +554,7 @@ private fun ComponentActivationStep(
             }
         }
 
-        // 3. Battery Optimization
+        // 3. Device Administrator (Anti-Uninstall)
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
@@ -561,7 +566,34 @@ private fun ComponentActivationStep(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("3. Battery Exemption", fontWeight = FontWeight.Bold)
+                    Text("3. Device Administrator", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (health.isDeviceAdminActive) "Active ✅" else "Blocks app uninstallation without master password.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Button(
+                    onClick = onActivateDeviceAdmin,
+                    enabled = !health.isDeviceAdminActive
+                ) {
+                    Text(if (health.isDeviceAdminActive) "Active" else "Activate")
+                }
+            }
+        }
+
+        // 4. Battery Optimization
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("4. Battery Exemption", fontWeight = FontWeight.Bold)
                     Text("Prevent Android from killing the background filter.", style = MaterialTheme.typography.bodySmall)
                 }
                 OutlinedButton(onClick = onOpenBatteryOpt) {
@@ -609,6 +641,17 @@ private fun FinalVerificationStep(
                     Text("Anti-Tamper Guard:")
                     Text(
                         if (health.isGuardRunning) "Running ✅" else "Inactive ⚠️",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                HorizontalDivider()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Device Administrator:")
+                    Text(
+                        if (health.isDeviceAdminActive) "Active ✅" else "Inactive ⚠️",
                         fontWeight = FontWeight.Bold
                     )
                 }

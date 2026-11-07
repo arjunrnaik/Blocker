@@ -10,6 +10,9 @@ import android.net.VpnService
 import android.os.ParcelFileDescriptor
 import com.lockweb.app.LockWebApplication
 import com.lockweb.app.MainActivity
+import com.lockweb.app.R
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import com.lockweb.corefilter.AtomicBlockCounter
 import com.lockweb.corefilter.BlockRule
 import com.lockweb.corefilter.DnsDecision
@@ -71,6 +74,12 @@ class LockWebVpnService : VpnService() {
 
         private val _blockedCount = MutableStateFlow(0L)
         val blockedCount: StateFlow<Long> = _blockedCount.asStateFlow()
+
+        private val _isAlwaysOn = MutableStateFlow(false)
+        val isAlwaysOn: StateFlow<Boolean> = _isAlwaysOn.asStateFlow()
+
+        private val _isLockdownEnabled = MutableStateFlow(false)
+        val isLockdownEnabled: StateFlow<Boolean> = _isLockdownEnabled.asStateFlow()
 
         // Increment-only anonymous counter
         val blockCounter = AtomicBlockCounter(0L)
@@ -154,6 +163,11 @@ class LockWebVpnService : VpnService() {
     private fun startVpn() {
         if (isRunning || _status.value == VpnStatus.Active) {
             return
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            _isAlwaysOn.value = isAlwaysOn
+            _isLockdownEnabled.value = isLockdownEnabled
         }
 
         _status.value = VpnStatus.Starting
@@ -459,8 +473,34 @@ class LockWebVpnService : VpnService() {
 
     override fun onRevoke() {
         stopVpn()
-        _status.value = VpnStatus.Idle
+        _status.value = VpnStatus.Degraded("VPN revoked by Android or another VPN app")
+        postRevocationNotification()
         super.onRevoke()
+    }
+
+    private fun postRevocationNotification() {
+        val launchIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            launchIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            .setContentTitle(getString(R.string.vpn_revoked_title))
+            .setContentText(getString(R.string.vpn_revoked_text))
+            .setSmallIcon(android.R.drawable.stat_notify_error)
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+
+        try {
+            NotificationManagerCompat.from(this).notify(1002, notification)
+        } catch (_: SecurityException) {}
     }
 
     override fun onDestroy() {

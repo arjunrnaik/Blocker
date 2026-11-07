@@ -1,5 +1,6 @@
 package com.lockweb.app.health
 
+import com.lockweb.app.admin.LockWebDeviceAdminReceiver
 import com.lockweb.app.guard.GuardSessionManager
 import com.lockweb.app.vpn.LockWebVpnService
 import com.lockweb.app.vpn.VpnStatus
@@ -8,7 +9,7 @@ import kotlinx.coroutines.flow.combine
 
 enum class OverallProtectionLevel {
     PROTECTED, // Both VPN Active and Anti-Tamper Guard Running
-    DEGRADED,  // Weakened: either VPN or Guard is inactive
+    DEGRADED,  // Weakened: VPN, Guard, or Device Admin is inactive
     STOPPED,   // Protection is currently idle/stopped
     ERROR      // An unrecoverable error occurred
 }
@@ -23,7 +24,10 @@ enum class OverallProtectionLevel {
  */
 data class ProtectionHealth(
     val vpnStatus: VpnStatus,
-    val isGuardRunning: Boolean
+    val isGuardRunning: Boolean,
+    val isDeviceAdminActive: Boolean = false,
+    val isAlwaysOnVpn: Boolean = false,
+    val isLockdownEnabled: Boolean = false
 ) {
     val isFullyProtected: Boolean
         get() = vpnStatus is VpnStatus.Active && isGuardRunning
@@ -31,22 +35,21 @@ data class ProtectionHealth(
     val overallLevel: OverallProtectionLevel
         get() = when {
             vpnStatus is VpnStatus.Error -> OverallProtectionLevel.ERROR
-            isFullyProtected -> OverallProtectionLevel.PROTECTED
-            vpnStatus is VpnStatus.Active && !isGuardRunning -> OverallProtectionLevel.DEGRADED
+            isFullyProtected && isDeviceAdminActive -> OverallProtectionLevel.PROTECTED
+            vpnStatus is VpnStatus.Active && (!isGuardRunning || !isDeviceAdminActive) -> OverallProtectionLevel.DEGRADED
             vpnStatus is VpnStatus.Degraded -> OverallProtectionLevel.DEGRADED
             else -> OverallProtectionLevel.STOPPED
         }
 
     val summaryText: String
         get() = when (overallLevel) {
-            OverallProtectionLevel.PROTECTED -> "Fully Protected (VPN Active + Guard Running)"
+            OverallProtectionLevel.PROTECTED -> "Fully Protected (VPN Active + Guard + Device Admin)"
             OverallProtectionLevel.DEGRADED -> {
-                if (vpnStatus is VpnStatus.Active && !isGuardRunning) {
-                    "Protection Weakened: Anti-Tamper Guard is Inactive"
-                } else if (vpnStatus is VpnStatus.Degraded) {
-                    "Protection Degraded: ${vpnStatus.reason}"
-                } else {
-                    "Protection Weakened"
+                when {
+                    vpnStatus is VpnStatus.Active && !isGuardRunning -> "Protection Weakened: Anti-Tamper Guard is Inactive"
+                    vpnStatus is VpnStatus.Active && !isDeviceAdminActive -> "Protection Weakened: Device Administrator Inactive"
+                    vpnStatus is VpnStatus.Degraded -> "Protection Degraded: ${vpnStatus.reason}"
+                    else -> "Protection Weakened"
                 }
             }
             OverallProtectionLevel.ERROR -> "Protection Error: ${(vpnStatus as? VpnStatus.Error)?.reason ?: "Unknown"}"
@@ -58,9 +61,18 @@ object HealthMonitor {
     fun observeProtectionHealth(): Flow<ProtectionHealth> {
         return combine(
             LockWebVpnService.status,
-            GuardSessionManager.instance.isGuardRunning
-        ) { vpn, guard ->
-            ProtectionHealth(vpnStatus = vpn, isGuardRunning = guard)
+            GuardSessionManager.instance.isGuardRunning,
+            LockWebDeviceAdminReceiver.isAdminActive,
+            LockWebVpnService.isAlwaysOn,
+            LockWebVpnService.isLockdownEnabled
+        ) { vpn, guard, admin, alwaysOn, lockdown ->
+            ProtectionHealth(
+                vpnStatus = vpn,
+                isGuardRunning = guard,
+                isDeviceAdminActive = admin,
+                isAlwaysOnVpn = alwaysOn,
+                isLockdownEnabled = lockdown
+            )
         }
     }
 }

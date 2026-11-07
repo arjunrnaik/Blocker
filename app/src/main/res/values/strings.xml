@@ -5,4 +5,10 @@
     <string name="guard_notification_channel_desc">Alerts when Anti-Tamper Guard or VPN protection is weakened</string>
     <string name="guard_weakened_title">⚠️ LockWeb protection is weakened</string>
     <string name="guard_weakened_text">Anti-Tamper Guard is disabled. Tap to re-enable in Accessibility settings.</string>
+    <string name="device_admin_description">LockWeb Device Administrator prevents unauthorized uninstallation of the website and adult content blocker.</string>
+    <string name="device_admin_disable_warning">Disabling LockWeb Device Administrator will remove uninstall protection. Your website blocks and adult content filters may be bypassed.</string>
+    <string name="vpn_revoked_title">⚠️ LockWeb VPN Disconnected</string>
+    <string name="vpn_revoked_text">VPN protection was disconnected by the system or another VPN. Tap to resume.</string>
+    <string name="boot_resume_title">LockWeb Protection</string>
+    <string name="boot_resume_text">Device rebooted. Tap to ensure LockWeb website blocking is active.</string>
 </resources>

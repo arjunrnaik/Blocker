@@ -21,6 +21,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import com.lockweb.app.admin.LockWebDeviceAdminReceiver
 import com.lockweb.app.ui.LockWebApp
 import com.lockweb.app.vpn.LockWebVpnService
 import com.lockweb.app.vpn.VpnStatus
@@ -73,6 +74,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        LockWebDeviceAdminReceiver.isActive(this)
     }
 
     private fun requestNotificationPermissionIfNeeded() {

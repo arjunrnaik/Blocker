@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lockweb.app.admin.LockWebDeviceAdminReceiver
 import com.lockweb.app.health.ProtectionHealth
 import com.lockweb.app.vpn.VpnStatus
 
@@ -139,9 +140,54 @@ fun ProtectionStatusScreen(
                 }
             )
 
-            // Layer 3: Private DNS Check
+            // Layer 3: Device Administrator (Anti-Uninstall)
             StatusLayerCard(
-                title = "3. Android Private DNS",
+                title = "3. Device Administrator",
+                subtitle = "Blocks direct launcher uninstallation while active. Deactivation requires master password.",
+                isActive = health.isDeviceAdminActive,
+                statusText = if (health.isDeviceAdminActive) "Active ✅" else "Inactive ⚠️",
+                actionButton = {
+                    if (!health.isDeviceAdminActive) {
+                        Button(
+                            onClick = {
+                                context.startActivity(LockWebDeviceAdminReceiver.createActivationIntent(context))
+                            }
+                        ) {
+                            Text("Activate")
+                        }
+                    }
+                }
+            )
+
+            // Layer 4: Always-On VPN & Lockdown Reporting
+            StatusLayerCard(
+                title = "4. Always-On VPN & Lockdown",
+                subtitle = "Android system-level guarantee that blocks connections if the VPN is down.",
+                isActive = health.isAlwaysOnVpn && health.isLockdownEnabled,
+                statusText = if (health.isAlwaysOnVpn && health.isLockdownEnabled) "Active & Locked ✅"
+                else if (health.isAlwaysOnVpn) "Always-On (Not Locked) ⚠️"
+                else "Not Enabled ⚠️",
+                actionButton = {
+                    OutlinedButton(
+                        onClick = {
+                            val intent = Intent("android.net.vpn.SETTINGS").apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            try {
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS))
+                            }
+                        }
+                    ) {
+                        Text("Configure")
+                    }
+                }
+            )
+
+            // Layer 5: Private DNS Check
+            StatusLayerCard(
+                title = "5. Android Private DNS",
                 subtitle = "Private DNS (DoT) can bypass local VPN DNS filtering if enabled in Android Settings.",
                 isActive = !isPrivateDnsActive,
                 statusText = if (isPrivateDnsActive) "Enabled (Warning) ⚠️" else "Off (Safe) ✅",
@@ -161,9 +207,9 @@ fun ProtectionStatusScreen(
                 }
             )
 
-            // Layer 4: Battery Optimization
+            // Layer 6: Battery Optimization
             StatusLayerCard(
-                title = "4. Background Battery Exemption",
+                title = "6. Background Battery Exemption",
                 subtitle = "Ensures Android does not put the DNS VPN service to sleep in the background.",
                 isActive = isBatteryExempt,
                 statusText = if (isBatteryExempt) "Unrestricted ✅" else "Optimized (May sleep) ⚠️",
