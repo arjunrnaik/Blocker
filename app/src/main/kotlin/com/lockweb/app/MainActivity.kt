@@ -64,6 +64,8 @@ class MainActivity : ComponentActivity() {
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             startVpnServiceInternal()
+        } else {
+            LockWebVpnService.setStatus(VpnStatus.Error("VPN consent dialog was cancelled by user."))
         }
     }
 

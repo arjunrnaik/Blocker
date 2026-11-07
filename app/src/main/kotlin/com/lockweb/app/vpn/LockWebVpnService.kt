@@ -87,6 +87,13 @@ class LockWebVpnService : VpnService() {
         val ruleSetRef = AtomicReference<RuleSet>(initialRuleSet)
 
         /**
+         * Sets status directly from UI or external components.
+         */
+        fun setStatus(newStatus: VpnStatus) {
+            _status.value = newStatus
+        }
+
+        /**
          * Hot-swaps the active filtering rule set and flushes the DNS cache immediately.
          */
         fun updateRuleSet(newRuleSet: RuleSet) {
@@ -139,7 +146,7 @@ class LockWebVpnService : VpnService() {
     }
 
     private fun startVpn() {
-        if (isRunning || _status.value == VpnStatus.Active || _status.value == VpnStatus.Starting) {
+        if (isRunning || _status.value == VpnStatus.Active) {
             return
         }
 
@@ -154,7 +161,7 @@ class LockWebVpnService : VpnService() {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
             )
         } catch (e: Exception) {
-            _status.value = VpnStatus.Error("Failed to start foreground service: ${e.message}")
+            stopVpn("Failed to start foreground service: ${e.message}")
             stopSelf()
             return
         }
@@ -164,8 +171,8 @@ class LockWebVpnService : VpnService() {
             Builder()
                 .setSession("LockWeb")
                 .setMtu(VPN_MTU)
-                .addAddress(VPN_IPV4_ADDRESS, 32)
-                .addAddress(VPN_IPV6_ADDRESS, 128)
+                .addAddress(VPN_IPV4_ADDRESS, 24)
+                .addAddress(VPN_IPV6_ADDRESS, 64)
                 .addDnsServer(VPN_IPV4_DNS)
                 .addDnsServer(VPN_IPV6_DNS)
                 .addRoute(VPN_IPV4_DNS, 32)
@@ -173,13 +180,13 @@ class LockWebVpnService : VpnService() {
                 .setBlocking(true)
                 .establish()
         } catch (e: Exception) {
-            _status.value = VpnStatus.Error("Failed to configure TUN interface: ${e.message}")
+            stopVpn("Failed to configure TUN interface: ${e.message}")
             stopSelf()
             return
         }
 
         if (pfd == null) {
-            _status.value = VpnStatus.Error("VpnService.Builder.establish() returned null. Consent missing or revoked.")
+            stopVpn("TUN establish() returned null. Permission missing or replaced by another VPN.")
             stopSelf()
             return
         }
@@ -192,8 +199,7 @@ class LockWebVpnService : VpnService() {
         // Perform internal filter self-test
         val selfTestPassed = runSelfTest()
         if (!selfTestPassed) {
-            _status.value = VpnStatus.Error("Filter self-test failed during startup.")
-            stopVpn()
+            stopVpn("Filter self-test failed during startup.")
             stopSelf()
             return
         }
@@ -334,14 +340,16 @@ class LockWebVpnService : VpnService() {
                 return false
             }
 
+            // Note: buildReplyPacket swaps src & dst. To generate an inbound packet with dstPort=53,
+            // we provide srcPort=53 and dstPort=54321 in the template request:
             val syntheticPacket = PacketCodec.buildReplyPacket(
                 ParsedUdpPacket(
                     version = IpVersion.IPV4,
-                    srcIp = byteArrayOf(10, 111, 222.toByte(), 2),
-                    dstIp = byteArrayOf(10, 111, 222.toByte(), 1),
-                    srcPort = 54321,
-                    dstPort = 53,
-                    payload = syntheticQuery,
+                    srcIp = byteArrayOf(10, 111, 222.toByte(), 1),
+                    dstIp = byteArrayOf(10, 111, 222.toByte(), 2),
+                    srcPort = 53,
+                    dstPort = 54321,
+                    payload = byteArrayOf(),
                     ipHeaderLength = 20
                 ),
                 syntheticQuery
@@ -418,7 +426,7 @@ class LockWebVpnService : VpnService() {
         return buffer
     }
 
-    private fun stopVpn() {
+    private fun stopVpn(errorReason: String? = null) {
         isRunning = false
 
         readerThread?.interrupt()
@@ -432,8 +440,15 @@ class LockWebVpnService : VpnService() {
         serviceScope.cancel()
         serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        _status.value = VpnStatus.Idle
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (_: Exception) {}
+
+        if (errorReason != null) {
+            _status.value = VpnStatus.Error(errorReason)
+        } else if (_status.value !is VpnStatus.Error) {
+            _status.value = VpnStatus.Idle
+        }
     }
 
     override fun onRevoke() {
@@ -444,7 +459,6 @@ class LockWebVpnService : VpnService() {
 
     override fun onDestroy() {
         stopVpn()
-        _status.value = VpnStatus.Idle
         super.onDestroy()
     }
 
