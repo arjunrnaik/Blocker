@@ -81,6 +81,17 @@ class LockWebVpnService : VpnService() {
         private val _isLockdownEnabled = MutableStateFlow(false)
         val isLockdownEnabled: StateFlow<Boolean> = _isLockdownEnabled.asStateFlow()
 
+        private var activeInstance: LockWebVpnService? = null
+
+        fun refreshAlwaysOnState() {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                activeInstance?.let { service ->
+                    _isAlwaysOn.value = service.isAlwaysOn
+                    _isLockdownEnabled.value = service.isLockdownEnabled
+                }
+            }
+        }
+
         // Increment-only anonymous counter
         val blockCounter = AtomicBlockCounter(0L)
 
@@ -133,6 +144,8 @@ class LockWebVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
+        activeInstance = this
+        refreshAlwaysOnState()
         createNotificationChannel()
         (application as? LockWebApplication)?.container?.let { container ->
             serviceScope.launch {
@@ -142,6 +155,8 @@ class LockWebVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        activeInstance = this
+        refreshAlwaysOnState()
         val action = intent?.action ?: ACTION_START
 
         when (action) {
@@ -505,6 +520,9 @@ class LockWebVpnService : VpnService() {
 
     override fun onDestroy() {
         stopVpn()
+        if (activeInstance === this) {
+            activeInstance = null
+        }
         super.onDestroy()
     }
 
