@@ -9,6 +9,7 @@ import com.lockweb.app.data.settingsDataStore
 import com.lockweb.app.security.AndroidKeyStoreVault
 import com.lockweb.app.security.AuthManager
 import com.lockweb.app.security.FileCredentialStorage
+import com.lockweb.app.security.FileRateLimitStore
 import com.lockweb.app.security.InMemoryRateLimitStore
 import com.lockweb.app.security.PasswordHasher
 import com.lockweb.app.security.RateLimiter
@@ -53,7 +54,7 @@ class AppContainer(private val context: Context) {
     }
 
     val rateLimiter: RateLimiter by lazy {
-        RateLimiter(InMemoryRateLimitStore())
+        RateLimiter(FileRateLimitStore(context.filesDir))
     }
 
     val recoveryCodeManager: RecoveryCodeManager by lazy {

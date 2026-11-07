@@ -26,6 +26,51 @@ class InMemoryRateLimitStore : RateLimitStore {
 }
 
 /**
+ * File-backed rate limit store persisting lockout across process death and app restarts.
+ * As required by MASTER_PROMPT.md Section 9.
+ */
+class FileRateLimitStore(
+    private val filesDir: java.io.File,
+    private val fileName: String = "rate_limit_state.txt"
+) : RateLimitStore {
+
+    private val file get() = java.io.File(filesDir, fileName)
+
+    override fun getFailedAttempts(): Int {
+        if (!file.exists()) return 0
+        return try {
+            val lines = file.readLines()
+            lines.getOrNull(0)?.trim()?.toIntOrNull() ?: 0
+        } catch (_: Exception) {
+            0
+        }
+    }
+
+    override fun getLockedUntilMillis(): Long {
+        if (!file.exists()) return 0L
+        return try {
+            val lines = file.readLines()
+            lines.getOrNull(1)?.trim()?.toLongOrNull() ?: 0L
+        } catch (_: Exception) {
+            0L
+        }
+    }
+
+    override fun saveState(failedAttempts: Int, lockedUntilMillis: Long) {
+        try {
+            file.parentFile?.mkdirs()
+            file.writeText("$failedAttempts\n$lockedUntilMillis")
+        } catch (_: Exception) {}
+    }
+
+    override fun clear() {
+        if (file.exists()) {
+            file.delete()
+        }
+    }
+}
+
+/**
  * Exponential/stepped rate limiter preventing brute-force password guessing.
  *
  * Lockout progression:

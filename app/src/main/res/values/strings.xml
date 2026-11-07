@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">LockWeb</string>
+    <string name="accessibility_service_description">LockWeb Anti-Tamper Guard prevents unauthorized changes to device settings that could disable your website blocker or adult filter.</string>
+    <string name="guard_notification_channel_name">LockWeb Protection Warnings</string>
+    <string name="guard_notification_channel_desc">Alerts when Anti-Tamper Guard or VPN protection is weakened</string>
+    <string name="guard_weakened_title">⚠️ LockWeb protection is weakened</string>
+    <string name="guard_weakened_text">Anti-Tamper Guard is disabled. Tap to re-enable in Accessibility settings.</string>
+</resources>

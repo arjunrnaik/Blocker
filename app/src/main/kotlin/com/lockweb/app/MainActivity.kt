@@ -51,6 +51,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import android.provider.Settings
+import androidx.compose.ui.platform.LocalContext
+import com.lockweb.app.guard.GuardSessionManager
+import com.lockweb.app.guard.GuardWatchdog
+import com.lockweb.app.health.HealthMonitor
+import com.lockweb.app.health.OverallProtectionLevel
+import com.lockweb.app.health.ProtectionHealth
 import com.lockweb.app.vpn.LockWebVpnService
 import com.lockweb.app.vpn.VpnStatus
 import com.lockweb.corefilter.BlockRule
@@ -135,8 +142,13 @@ fun VpnDebugScreen(
     onStopVpn: () -> Unit,
     onResetCounter: () -> Unit
 ) {
+    val context = LocalContext.current
     val status by LockWebVpnService.status.collectAsState()
     val blockedCount by LockWebVpnService.blockedCount.collectAsState()
+    val guardRunning by GuardSessionManager.instance.isGuardRunning.collectAsState()
+    val health by HealthMonitor.observeProtectionHealth().collectAsState(
+        initial = ProtectionHealth(vpnStatus = status, isGuardRunning = guardRunning)
+    )
 
     val testRules = remember {
         mutableStateListOf("reddit.com")
@@ -163,14 +175,26 @@ fun VpnDebugScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Phase 3: DNS-Only VPN Engine & Live Verification",
+                    text = "Phase 5: Anti-Tamper Guard & Self-Protection Engine",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            // Health Status Card
-            StatusCard(status = status)
+            // Overall Protection Health Badge
+            OverallProtectionBadge(health = health)
+
+            // Layer Breakdown Card
+            ProtectionLayersCard(
+                vpnStatus = status,
+                isGuardRunning = guardRunning,
+                onOpenAccessibilitySettings = {
+                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                }
+            )
 
             // Block Counter Card
             Card(
@@ -316,7 +340,7 @@ fun VpnDebugScreen(
                 }
             }
 
-            // Real-device verification instructions
+            // Phase 5 Anti-Tamper & Verification Checklist
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -330,28 +354,28 @@ fun VpnDebugScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = "Device Verification Checklist:",
+                        text = "Phase 5 Anti-Tamper Verification Checklist:",
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = "1. Tap 'Start Protection' and accept Android's VPN connection request.",
+                        text = "1. Enable 'LockWeb Anti-Tamper Guard' in Android Accessibility settings.",
                         style = MaterialTheme.typography.bodySmall
                     )
                     Text(
-                        text = "2. Check status indicator turns green (Active).",
+                        text = "2. Open Android Settings -> Apps -> LockWeb -> verify Password Gate pops up.",
                         style = MaterialTheme.typography.bodySmall
                     )
                     Text(
-                        text = "3. Open Chrome and visit 'reddit.com' -> should fail with DNS error.",
+                        text = "3. Tap Back/Cancel on Password Gate -> verify you are sent back to Home screen.",
                         style = MaterialTheme.typography.bodySmall
                     )
                     Text(
-                        text = "4. Switch back to LockWeb -> verify Blocked Queries counter incremented.",
+                        text = "4. Open Settings -> VPN or Private DNS -> verify Password Gate appears.",
                         style = MaterialTheme.typography.bodySmall
                     )
                     Text(
-                        text = "5. Visit 'wikipedia.org' in Chrome -> should load fast with normal internet.",
+                        text = "5. Enter password in Gate -> verify 60s temporary administrative access is granted.",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -361,21 +385,18 @@ fun VpnDebugScreen(
 }
 
 @Composable
-fun StatusCard(status: VpnStatus) {
-    val (statusLabel, statusColor, description) = when (status) {
-        is VpnStatus.Idle -> Triple("Idle", Color.Gray, "Protection is currently stopped.")
-        is VpnStatus.Starting -> Triple("Starting...", Color(0xFF2196F3), "Configuring TUN and running self-test...")
-        is VpnStatus.Active -> Triple("Active", Color(0xFF2E7D32), "DNS filtering is actively protecting device.")
-        is VpnStatus.Paused -> Triple("Paused", Color(0xFFED6C02), "Protection is temporarily paused.")
-        is VpnStatus.PermissionRequired -> Triple("Permission Required", Color(0xFFED6C02), "VPN consent dialog pending.")
-        is VpnStatus.Degraded -> Triple("Degraded", Color(0xFFED6C02), status.reason)
-        is VpnStatus.Error -> Triple("Error", Color(0xFFD32F2F), status.reason)
+fun OverallProtectionBadge(health: ProtectionHealth) {
+    val (label, color, desc) = when (health.overallLevel) {
+        OverallProtectionLevel.PROTECTED -> Triple("Protected", Color(0xFF2E7D32), "Active DNS filtering + Anti-Tamper Guard running.")
+        OverallProtectionLevel.DEGRADED -> Triple("Degraded (Weakened)", Color(0xFFED6C02), health.summaryText)
+        OverallProtectionLevel.STOPPED -> Triple("Stopped", Color.Gray, "Protection is currently idle.")
+        OverallProtectionLevel.ERROR -> Triple("Error", Color(0xFFD32F2F), health.summaryText)
     }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = statusColor.copy(alpha = 0.12f)
+            containerColor = color.copy(alpha = 0.12f)
         )
     ) {
         Row(
@@ -386,24 +407,105 @@ fun StatusCard(status: VpnStatus) {
         ) {
             Box(
                 modifier = Modifier
-                    .width(12.dp)
-                    .height(12.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(statusColor)
+                    .size(16.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(color)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    text = "Status: $statusLabel",
+                    text = "Overall Status: $label",
                     fontWeight = FontWeight.Bold,
-                    color = statusColor,
+                    color = color,
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = description,
+                    text = desc,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun ProtectionLayersCard(
+    vpnStatus: VpnStatus,
+    isGuardRunning: Boolean,
+    onOpenAccessibilitySettings: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "PROTECTION LAYERS",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            // Layer 1: DNS VPN
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "DNS Filtering Engine (VPN)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = if (vpnStatus is VpnStatus.Active) "Active (NXDOMAIN blocking)" else "Inactive",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (vpnStatus is VpnStatus.Active) Color(0xFF2E7D32) else Color.Gray
+                    )
+                }
+                Text(
+                    text = if (vpnStatus is VpnStatus.Active) "✅" else "⚪",
+                    fontSize = 18.sp
+                )
+            }
+
+            // Layer 2: Anti-Tamper Guard
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Anti-Tamper Guard",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = if (isGuardRunning) "Running (Settings Intercept Active)" else "Disabled (Tap to Enable)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isGuardRunning) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
+                    )
+                }
+                if (!isGuardRunning) {
+                    Button(
+                        onClick = onOpenAccessibilitySettings,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Enable", fontSize = 12.sp)
+                    }
+                } else {
+                    Text(text = "✅", fontSize = 18.sp)
+                }
             }
         }
     }
