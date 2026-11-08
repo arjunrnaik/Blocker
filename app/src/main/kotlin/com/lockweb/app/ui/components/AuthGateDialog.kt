@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,7 +37,10 @@ import androidx.compose.ui.unit.sp
 import com.lockweb.app.security.AuthManager
 import com.lockweb.app.security.AuthResult
 import com.lockweb.app.security.RateLimiter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun AuthGateDialog(
@@ -46,10 +50,12 @@ fun AuthGateDialog(
     onAuthenticated: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var lockoutSeconds by remember { mutableLongStateOf(0L) }
+    var isVerifying by remember { mutableStateOf(false) }
 
     fun refreshLockout() {
         when (val status = authManager.checkRateLimit()) {
@@ -80,30 +86,37 @@ fun AuthGateDialog(
     }
 
     fun submit() {
-        if (lockoutSeconds > 0) return
+        if (lockoutSeconds > 0 || isVerifying) return
         if (password.isBlank()) {
             errorMessage = "Password cannot be empty"
             return
         }
 
-        when (val res = authManager.verifyPassword(password)) {
-            is AuthResult.Success -> {
-                onAuthenticated()
+        isVerifying = true
+        scope.launch(Dispatchers.Default) {
+            val res = authManager.verifyPassword(password)
+            withContext(Dispatchers.Main) {
+                isVerifying = false
+                when (res) {
+                    is AuthResult.Success -> {
+                        onAuthenticated()
+                    }
+                    is AuthResult.WrongPassword -> {
+                        errorMessage = "Incorrect password. ${res.attemptsRemainingBeforeLockout} attempts remaining."
+                        password = ""
+                    }
+                    is AuthResult.LockedOut -> {
+                        lockoutSeconds = res.remainingSeconds
+                        errorMessage = "Locked out for ${res.remainingSeconds} seconds."
+                        password = ""
+                    }
+                    is AuthResult.Uninitialized -> {
+                        // If not yet initialized, allow action
+                        onAuthenticated()
+                    }
+                    is AuthResult.InvalidRecoveryCode -> {}
+                }
             }
-            is AuthResult.WrongPassword -> {
-                errorMessage = "Incorrect password. ${res.attemptsRemainingBeforeLockout} attempts remaining."
-                password = ""
-            }
-            is AuthResult.LockedOut -> {
-                lockoutSeconds = res.remainingSeconds
-                errorMessage = "Locked out for ${res.remainingSeconds} seconds."
-                password = ""
-            }
-            is AuthResult.Uninitialized -> {
-                // If not yet initialized, allow action
-                onAuthenticated()
-            }
-            is AuthResult.InvalidRecoveryCode -> {}
         }
     }
 
@@ -132,7 +145,7 @@ fun AuthGateDialog(
                         if (errorMessage != null && lockoutSeconds == 0L) errorMessage = null
                     },
                     label = { Text("Master Password") },
-                    enabled = lockoutSeconds == 0L,
+                    enabled = lockoutSeconds == 0L && !isVerifying,
                     singleLine = true,
                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(
@@ -160,13 +173,16 @@ fun AuthGateDialog(
         confirmButton = {
             Button(
                 onClick = { submit() },
-                enabled = lockoutSeconds == 0L && password.isNotBlank()
+                enabled = lockoutSeconds == 0L && password.isNotBlank() && !isVerifying
             ) {
-                Text("Confirm")
+                Text(if (isVerifying) "Verifying..." else "Confirm")
             }
         },
         dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
+            OutlinedButton(
+                onClick = onDismiss,
+                enabled = !isVerifying
+            ) {
                 Text("Cancel")
             }
         },

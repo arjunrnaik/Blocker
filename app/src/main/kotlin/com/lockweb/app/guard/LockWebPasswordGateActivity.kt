@@ -39,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,7 +54,10 @@ import androidx.compose.ui.unit.sp
 import com.lockweb.app.LockWebApplication
 import com.lockweb.app.security.AuthResult
 import com.lockweb.app.security.RateLimiter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class LockWebPasswordGateActivity : ComponentActivity() {
 
@@ -125,11 +129,13 @@ fun PasswordGateScreen(
 ) {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as LockWebApplication
     val authManager = app.container.authManager
+    val scope = rememberCoroutineScope()
 
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var lockoutSeconds by remember { mutableLongStateOf(0L) }
+    var isVerifying by remember { mutableStateOf(false) }
 
     // Check rate limit on start
     fun refreshLockout() {
@@ -162,30 +168,37 @@ fun PasswordGateScreen(
     }
 
     fun submitPassword() {
-        if (lockoutSeconds > 0) return
+        if (lockoutSeconds > 0 || isVerifying) return
         if (password.isBlank()) {
             errorMessage = "Password cannot be empty"
             return
         }
 
-        when (val result = authManager.verifyPassword(password)) {
-            is AuthResult.Success -> {
-                onUnlockSuccess()
+        isVerifying = true
+        scope.launch(Dispatchers.Default) {
+            val result = authManager.verifyPassword(password)
+            withContext(Dispatchers.Main) {
+                isVerifying = false
+                when (result) {
+                    is AuthResult.Success -> {
+                        onUnlockSuccess()
+                    }
+                    is AuthResult.WrongPassword -> {
+                        errorMessage = "Incorrect password. ${result.attemptsRemainingBeforeLockout} attempts remaining before lockout."
+                        password = ""
+                    }
+                    is AuthResult.LockedOut -> {
+                        lockoutSeconds = result.remainingSeconds
+                        errorMessage = "Locked out for ${result.remainingSeconds} seconds."
+                        password = ""
+                    }
+                    is AuthResult.Uninitialized -> {
+                        // If no password was created yet, permit temporary setup access
+                        onUnlockSuccess()
+                    }
+                    is AuthResult.InvalidRecoveryCode -> {}
+                }
             }
-            is AuthResult.WrongPassword -> {
-                errorMessage = "Incorrect password. ${result.attemptsRemainingBeforeLockout} attempts remaining before lockout."
-                password = ""
-            }
-            is AuthResult.LockedOut -> {
-                lockoutSeconds = result.remainingSeconds
-                errorMessage = "Locked out for ${result.remainingSeconds} seconds."
-                password = ""
-            }
-            is AuthResult.Uninitialized -> {
-                // If no password was created yet, permit temporary setup access
-                onUnlockSuccess()
-            }
-            is AuthResult.InvalidRecoveryCode -> {}
         }
     }
 
@@ -247,7 +260,7 @@ fun PasswordGateScreen(
                             }
                         },
                         label = { Text("Master Password") },
-                        enabled = lockoutSeconds == 0L,
+                        enabled = lockoutSeconds == 0L && !isVerifying,
                         singleLine = true,
                         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(
@@ -283,6 +296,7 @@ fun PasswordGateScreen(
                     ) {
                         OutlinedButton(
                             onClick = onCancel,
+                            enabled = !isVerifying,
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("Cancel (Home)")
@@ -290,10 +304,10 @@ fun PasswordGateScreen(
 
                         Button(
                             onClick = { submitPassword() },
-                            enabled = lockoutSeconds == 0L && password.isNotBlank(),
+                            enabled = lockoutSeconds == 0L && password.isNotBlank() && !isVerifying,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Unlock")
+                            Text(if (isVerifying) "Verifying..." else "Unlock")
                         }
                     }
                 }

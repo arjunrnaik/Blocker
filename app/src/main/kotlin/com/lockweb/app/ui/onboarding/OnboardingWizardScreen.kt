@@ -57,7 +57,9 @@ import androidx.compose.ui.unit.sp
 import com.lockweb.app.LockWebApplication
 import com.lockweb.app.health.ProtectionHealth
 import com.lockweb.app.vpn.VpnStatus
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun OnboardingWizardScreen(
@@ -82,6 +84,7 @@ fun OnboardingWizardScreen(
     var recoverySavedChecked by remember { mutableStateOf(false) }
 
     var enableAdultFilter by remember { mutableStateOf(true) }
+    var isProcessing by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize()
@@ -219,11 +222,17 @@ fun OnboardingWizardScreen(
                                     passwordError = "Password must be at least 8 characters."
                                 } else if (password != confirmPassword) {
                                     passwordError = "Passwords do not match."
-                                } else {
+                                } else if (!isProcessing) {
                                     passwordError = null
-                                    // Generate credentials
-                                    recoveryCode = app.container.authManager.setupCredentials(password.toCharArray())
-                                    currentStep++
+                                    isProcessing = true
+                                    scope.launch(Dispatchers.Default) {
+                                        val code = app.container.authManager.setupCredentials(password.toCharArray())
+                                        withContext(Dispatchers.Main) {
+                                            recoveryCode = code
+                                            isProcessing = false
+                                            currentStep++
+                                        }
+                                    }
                                 }
                             }
                             3 -> {
@@ -250,12 +259,16 @@ fun OnboardingWizardScreen(
                     },
                     modifier = Modifier.weight(1f),
                     enabled = when (currentStep) {
-                        2 -> password.isNotBlank() && confirmPassword.isNotBlank()
-                        3 -> recoverySavedChecked
-                        else -> true
+                        2 -> password.isNotBlank() && confirmPassword.isNotBlank() && !isProcessing
+                        3 -> recoverySavedChecked && !isProcessing
+                        else -> !isProcessing
                     }
                 ) {
-                    Text(if (currentStep == totalSteps) "Complete Setup" else "Continue")
+                    if (isProcessing) {
+                        Text("Securing Master Key...")
+                    } else {
+                        Text(if (currentStep == totalSteps) "Complete Setup" else "Continue")
+                    }
                 }
             }
         }

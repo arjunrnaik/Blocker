@@ -20,7 +20,7 @@ class PasswordHasher(
 ) {
 
     companion object {
-        const val DEFAULT_ITERATIONS = 600_000
+        const val DEFAULT_ITERATIONS = 100_000
         const val SALT_LENGTH_BYTES = 16
         const val HASH_LENGTH_BITS = 256
         const val HASH_LENGTH_BYTES = HASH_LENGTH_BITS / 8
