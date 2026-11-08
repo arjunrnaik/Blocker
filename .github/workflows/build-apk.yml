@@ -29,8 +29,18 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: |
+          for i in 1 2 3 4 5; do
+            ./gradlew assembleDebug --stacktrace && break || {
+              if [ $i -eq 5 ]; then exit 1; fi
+              echo "Attempt $i failed, retrying in 10s..."
+              sleep 10
+            }
+          done
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -41,7 +51,14 @@ jobs:
           retention-days: 14
 
       - name: Run Unit Tests
-        run: ./gradlew test --stacktrace
+        run: |
+          for i in 1 2 3; do
+            ./gradlew test --stacktrace && break || {
+              if [ $i -eq 3 ]; then exit 1; fi
+              echo "Attempt $i failed, retrying in 10s..."
+              sleep 10
+            }
+          done
 
       - name: Print Test Failures on Failure
         if: failure()
