@@ -367,7 +367,7 @@ fun SettingsScreen(
 
         AlertDialog(
             onDismissRequest = { if (!isChanging) showPasswordChangeDialog = false },
-            properties = DialogProperties(securePolicy = SecureFlagPolicy.SECURE_ON),
+            properties = DialogProperties(securePolicy = SecureFlagPolicy.SecureOn),
             title = { Text("Change Master Password", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -457,7 +457,7 @@ fun SettingsScreen(
         val codeToRecord = newRecoveryCodeToDisplay ?: ""
         AlertDialog(
             onDismissRequest = { /* user must acknowledge */ },
-            properties = DialogProperties(securePolicy = SecureFlagPolicy.SECURE_ON),
+            properties = DialogProperties(securePolicy = SecureFlagPolicy.SecureOn),
             title = { Text("⚠️ Save Your New Recovery Code", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

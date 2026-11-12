@@ -124,7 +124,7 @@ fun AuthGateDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(securePolicy = SecureFlagPolicy.SECURE_ON),
+        properties = DialogProperties(securePolicy = SecureFlagPolicy.SecureOn),
         title = {
             Text(text = title, fontWeight = FontWeight.Bold)
         },
