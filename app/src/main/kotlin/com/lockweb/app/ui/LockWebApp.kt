@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.lockweb.app.LockWebApplication
 import com.lockweb.app.health.HealthMonitor
@@ -72,10 +73,21 @@ fun LockWebApp(
                         Screen.Status,
                         Screen.Settings
                     ).forEach { screen ->
+                        val selected = currentScreen.route == screen.route
                         NavigationBarItem(
-                            icon = { Text(screen.icon, fontSize = 20.sp) },
-                            label = { Text(screen.title) },
-                            selected = currentScreen.route == screen.route,
+                            icon = {
+                                Icon(
+                                    imageVector = if (selected) screen.selectedIcon else screen.icon,
+                                    contentDescription = screen.title
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = screen.title,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                                )
+                            },
+                            selected = selected,
                             onClick = { currentScreen = screen }
                         )
                     }

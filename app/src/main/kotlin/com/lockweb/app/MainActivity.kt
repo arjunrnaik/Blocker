@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.lockweb.app.admin.LockWebDeviceAdminReceiver
 import com.lockweb.app.ui.LockWebApp
+import com.lockweb.app.ui.theme.LockWebTheme
 import com.lockweb.app.vpn.LockWebVpnService
 import com.lockweb.app.vpn.VpnStatus
 
@@ -53,15 +54,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             val app = application as LockWebApplication
             val appTheme by app.container.settingsRepository.appTheme.collectAsState(initial = "SYSTEM")
-            val isDark = when (appTheme) {
-                "DARK" -> true
-                "LIGHT" -> false
-                else -> isSystemInDarkTheme()
-            }
 
-            MaterialTheme(
-                colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
-            ) {
+            LockWebTheme(appTheme = appTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

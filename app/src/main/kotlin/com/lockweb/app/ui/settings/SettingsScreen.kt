@@ -1,8 +1,9 @@
 package com.lockweb.app.ui.settings
 
 import android.widget.Toast
-import com.lockweb.app.admin.LockWebDeviceAdminReceiver
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,22 +11,35 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Backup
+import androidx.compose.material.icons.rounded.BrightnessAuto
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -36,6 +50,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -46,10 +62,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.SecureFlagPolicy
+import com.lockweb.app.BuildConfig
 import com.lockweb.app.LockWebApplication
+import com.lockweb.app.admin.LockWebDeviceAdminReceiver
 import com.lockweb.app.blocklist.ImportResult
 import com.lockweb.app.blocklist.RuleImportExport
 import com.lockweb.app.ui.components.AuthGateDialog
+import com.lockweb.app.ui.theme.StatusError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -86,14 +105,15 @@ fun SettingsScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 20.dp, vertical = 16.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             // Header
             Column {
                 Text(
                     text = "Settings",
                     style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-0.5).sp
                 )
                 Text(
                     text = "Preferences, security, and administrative actions",
@@ -103,159 +123,166 @@ fun SettingsScreen(
             }
 
             // Theme Setting
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+            SettingsGroup(title = "Appearance") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "Appearance Theme",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
+                    ThemeOptionPill(
+                        label = "System",
+                        icon = Icons.Rounded.BrightnessAuto,
+                        selected = currentTheme == "SYSTEM",
+                        onClick = {
+                            scope.launch { app.container.settingsRepository.setAppTheme("SYSTEM") }
+                        },
+                        modifier = Modifier.weight(1f)
                     )
+                    ThemeOptionPill(
+                        label = "Light",
+                        icon = Icons.Rounded.LightMode,
+                        selected = currentTheme == "LIGHT",
+                        onClick = {
+                            scope.launch { app.container.settingsRepository.setAppTheme("LIGHT") }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    ThemeOptionPill(
+                        label = "Dark",
+                        icon = Icons.Rounded.DarkMode,
+                        selected = currentTheme == "DARK",
+                        onClick = {
+                            scope.launch { app.container.settingsRepository.setAppTheme("DARK") }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            // Network & DNS Settings
+            SettingsGroup(title = "Network & Security") {
+                SettingActionRow(
+                    icon = Icons.Rounded.Dns,
+                    title = "Upstream DNS Resolver",
+                    subtitle = "$primaryDns (Primary) • $fallbackDns (Fallback)",
+                    buttonText = "Change",
+                    onClick = { showAuthGateFor = "dns" }
+                )
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                SettingActionRow(
+                    icon = Icons.Rounded.Key,
+                    title = "Master Password",
+                    subtitle = "Protects app configuration and security settings",
+                    buttonText = "Update",
+                    onClick = { showAuthGateFor = "change_password" }
+                )
+            }
+
+            // Rule Import / Export
+            SettingsGroup(title = "Backup & Data") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        listOf("SYSTEM" to "System", "LIGHT" to "Light", "DARK" to "Dark").forEach { (themeKey, label) ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                RadioButton(
-                                    selected = currentTheme == themeKey,
-                                    onClick = {
-                                        scope.launch {
-                                            app.container.settingsRepository.setAppTheme(themeKey)
-                                        }
-                                    }
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Rounded.Backup,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
                                 )
-                                Text(text = label, style = MaterialTheme.typography.bodySmall)
                             }
                         }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Rule Backup & Transfer",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Export user-defined rules to JSON or import additively.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
-                }
-            }
 
-            // Upstream DNS Resolver (Authenticated)
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Upstream DNS Resolver",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Current: $primaryDns / $fallbackDns",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Button(onClick = { showAuthGateFor = "dns" }) {
-                        Text("Change")
-                    }
-                }
-            }
-
-            // Security: Change Password (Authenticated)
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Change Master Password",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Update the master password used to authenticate changes.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Button(onClick = { showAuthGateFor = "change_password" }) {
-                        Text("Update")
-                    }
-                }
-            }
-
-            // Rule Import / Export (Authenticated)
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = "Backup & Restore Custom Rules",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Export user-added rules to JSON or import rules additively. The adult blocklist is never exported.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         OutlinedButton(
                             onClick = { showAuthGateFor = "export" },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Export Rules")
+                            Text("Export JSON")
                         }
                         OutlinedButton(
                             onClick = { showAuthGateFor = "import" },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Import Rules")
+                            Text("Import JSON")
                         }
                     }
                 }
             }
 
-            // Danger Zone: Disable Protection & Allow Uninstall (Authenticated)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = "⚠️ Danger Zone: Disable & Uninstall",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Text(
-                        text = "Requires master password. Stops the VPN filter and permits opening system settings to deactivate or uninstall.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
+            // Maintenance / Admin Action
+            SettingsGroup(title = "Maintenance Window") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = StatusError.copy(alpha = 0.15f),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Rounded.Warning,
+                                    contentDescription = null,
+                                    tint = StatusError,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Pause All Defense Layers",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = StatusError
+                            )
+                            Text(
+                                text = "Requires master password. Grants a temporary 60-second administrative window to configure or remove components.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
                     Button(
                         onClick = { showAuthGateFor = "disable_all" },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        colors = ButtonDefaults.buttonColors(containerColor = StatusError),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Disable All Protection")
+                        Text("Unlock 60-Second Admin Window", fontWeight = FontWeight.Bold)
                     }
                 }
             }
 
-            // App Version Info
+            // Footer
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -263,12 +290,12 @@ fun SettingsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "LockWeb v${com.lockweb.app.BuildConfig.VERSION_NAME}",
+                    text = "LockWeb v${BuildConfig.VERSION_NAME}",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Zero Telemetry • DNS-Only VPN Loopback",
+                    text = "Local DNS Loopback • Zero Telemetry",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -276,10 +303,10 @@ fun SettingsScreen(
         }
     }
 
-    // Auth Gate Dialog when required
+    // Auth Gate Dialog
     if (showAuthGateFor != null) {
         AuthGateDialog(
-            title = "Master Password Required",
+            title = "Master Key Required",
             subtitle = "Authenticate to access administrative settings.",
             authManager = app.container.authManager,
             onAuthenticated = {
@@ -310,19 +337,32 @@ fun SettingsScreen(
 
         AlertDialog(
             onDismissRequest = { showDnsDialog = false },
-            title = { Text("Upstream DNS Resolver") },
+            title = { Text("Upstream DNS Resolver", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Select or enter custom upstream DNS resolver IPv4 addresses:", style = MaterialTheme.typography.bodySmall)
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Select a provider preset or enter custom IPv4 DNS resolver addresses:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Button(onClick = { newPrimary = "1.1.1.1"; newFallback = "1.0.0.1" }, modifier = Modifier.weight(1f)) {
+                        FilledTonalButton(
+                            onClick = { newPrimary = "1.1.1.1"; newFallback = "1.0.0.1" },
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Text("Cloudflare", fontSize = 11.sp)
                         }
-                        Button(onClick = { newPrimary = "8.8.8.8"; newFallback = "8.8.4.4" }, modifier = Modifier.weight(1f)) {
+                        FilledTonalButton(
+                            onClick = { newPrimary = "8.8.8.8"; newFallback = "8.8.4.4" },
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Text("Google", fontSize = 11.sp)
                         }
-                        Button(onClick = { newPrimary = "9.9.9.9"; newFallback = "149.112.112.112" }, modifier = Modifier.weight(1f)) {
+                        FilledTonalButton(
+                            onClick = { newPrimary = "9.9.9.9"; newFallback = "149.112.112.112" },
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Text("Quad9", fontSize = 11.sp)
                         }
                     }
@@ -331,13 +371,15 @@ fun SettingsScreen(
                         value = newPrimary,
                         onValueChange = { newPrimary = it },
                         label = { Text("Primary DNS") },
-                        singleLine = true
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = newFallback,
                         onValueChange = { newFallback = it },
                         label = { Text("Fallback DNS") },
-                        singleLine = true
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             },
@@ -458,11 +500,11 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { /* user must acknowledge */ },
             properties = DialogProperties(securePolicy = SecureFlagPolicy.SecureOn),
-            title = { Text("⚠️ Save Your New Recovery Code", fontWeight = FontWeight.Bold) },
+            title = { Text("New Recovery Key", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "Your master password was updated. Below is your NEW 160-bit emergency recovery code. Your old recovery code is now invalid. Write this code down safely.",
+                        "Your master password has been updated. Below is your NEW 160-bit emergency recovery key. Record it in a secure location.",
                         style = MaterialTheme.typography.bodySmall
                     )
 
@@ -481,9 +523,9 @@ fun SettingsScreen(
                     }
 
                     Text(
-                        "If you lose both your password and this code, factory resetting your device is the ONLY way to remove LockWeb.",
+                        "Your old recovery key is now deactivated.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             },
@@ -491,10 +533,10 @@ fun SettingsScreen(
                 Button(
                     onClick = {
                         newRecoveryCodeToDisplay = null
-                        Toast.makeText(context, "Master password updated successfully", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Password updated successfully", Toast.LENGTH_SHORT).show()
                     }
                 ) {
-                    Text("I Have Recorded This Code")
+                    Text("I Have Saved This Key")
                 }
             }
         )
@@ -504,11 +546,10 @@ fun SettingsScreen(
     if (showExportDialog) {
         AlertDialog(
             onDismissRequest = { showExportDialog = false },
-            title = { Text("Exported Block Rules JSON") },
+            title = { Text("Exported Rules JSON", fontWeight = FontWeight.Bold) },
             text = {
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Copy your user-defined block rules:", style = MaterialTheme.typography.bodySmall)
-                    Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = exportedJson,
                         onValueChange = {},
@@ -528,14 +569,14 @@ fun SettingsScreen(
         var importError by remember { mutableStateOf<String?>(null) }
         AlertDialog(
             onDismissRequest = { showImportDialog = false },
-            title = { Text("Import Block Rules JSON") },
+            title = { Text("Import Rules JSON", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Paste JSON containing rules to add (additive only):", style = MaterialTheme.typography.bodySmall)
                     OutlinedTextField(
                         value = importJsonInput,
                         onValueChange = { importJsonInput = it; importError = null },
-                        placeholder = { Text("{\"version\":1,\"rules\":[...]}", fontSize = 12.sp) },
+                        placeholder = { Text("{\"version\":1,\"rules\":[...]}") },
                         modifier = Modifier.fillMaxWidth()
                     )
                     if (importError != null) {
@@ -549,7 +590,7 @@ fun SettingsScreen(
                         is ImportResult.Success -> {
                             scope.launch {
                                 app.container.ruleRepository.importRules(res.rulesToAdd)
-                                Toast.makeText(context, "Imported ${res.rulesToAdd.size} rules successfully (${res.skippedCount} skipped)", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Imported ${res.rulesToAdd.size} rules (${res.skippedCount} skipped)", Toast.LENGTH_SHORT).show()
                                 showImportDialog = false
                             }
                         }
@@ -571,10 +612,10 @@ fun SettingsScreen(
     if (showDisableAllDialog) {
         AlertDialog(
             onDismissRequest = { showDisableAllDialog = false },
-            title = { Text("Disable Protection?") },
+            title = { Text("Grant Admin Window?", fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    "This will stop the VPN filter and allow 60 seconds of unintercepted access to system settings. Are you sure?",
+                    "This temporarily stops the local DNS filter and allows 60 seconds of unintercepted access to system settings. After 60 seconds, anti-tamper enforcement automatically re-engages.",
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
@@ -585,16 +626,139 @@ fun SettingsScreen(
                         LockWebDeviceAdminReceiver.removeAdmin(context)
                         app.container.guardSessionManager.grantTemporaryAccess(60_000L)
                         showDisableAllDialog = false
-                        Toast.makeText(context, "Protection paused & Admin removed for 60 seconds", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "60-second administrative window active", Toast.LENGTH_LONG).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Yes, Pause Protection")
+                    Text("Pause Protection")
                 }
             },
             dismissButton = {
                 OutlinedButton(onClick = { showDisableAllDialog = false }) { Text("Cancel") }
             }
         )
+    }
+}
+
+@Composable
+private fun SettingsGroup(
+    title: String,
+    content: @Composable () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = title.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = 4.dp)
+        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeOptionPill(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingActionRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    buttonText: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.weight(1f)
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                modifier = Modifier.size(36.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        FilledTonalButton(onClick = onClick) {
+            Text(buttonText)
+        }
     }
 }

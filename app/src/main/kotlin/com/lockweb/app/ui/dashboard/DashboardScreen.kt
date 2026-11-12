@@ -3,7 +3,11 @@ package com.lockweb.app.ui.dashboard
 import android.content.Intent
 import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,16 +20,30 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -48,6 +66,9 @@ import com.lockweb.app.data.AddRuleResult
 import com.lockweb.app.health.OverallProtectionLevel
 import com.lockweb.app.health.ProtectionHealth
 import com.lockweb.app.ui.components.AddRuleDialog
+import com.lockweb.app.ui.theme.StatusError
+import com.lockweb.app.ui.theme.StatusProtected
+import com.lockweb.app.ui.theme.StatusWarning
 import com.lockweb.app.vpn.LockWebVpnService
 import com.lockweb.app.vpn.VpnStatus
 import kotlinx.coroutines.launch
@@ -75,9 +96,11 @@ fun DashboardScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddRuleDialog = true },
-                containerColor = MaterialTheme.colorScheme.primary
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = CircleShape
             ) {
-                Text("+", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Icon(Icons.Rounded.Add, contentDescription = "Add Rule")
             }
         }
     ) { innerPadding ->
@@ -87,9 +110,9 @@ fun DashboardScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 20.dp, vertical = 16.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // App Title Header
+            // App Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -99,145 +122,149 @@ fun DashboardScreen(
                     Text(
                         text = "LockWeb",
                         style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = (-0.5).sp
                     )
                     Text(
-                        text = "Self-Control & Website Blocker",
+                        text = "Self-Control & Privacy Shield",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            }
 
-            // Loud Warning Banner when protection is weakened
-            if (health.overallLevel == OverallProtectionLevel.DEGRADED || !health.isGuardRunning) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                // Status indicator pill
+                Surface(
+                    color = when (health.overallLevel) {
+                        OverallProtectionLevel.PROTECTED -> StatusProtected.copy(alpha = 0.15f)
+                        OverallProtectionLevel.DEGRADED -> StatusWarning.copy(alpha = 0.15f)
+                        OverallProtectionLevel.STOPPED -> MaterialTheme.colorScheme.surfaceVariant
+                        OverallProtectionLevel.ERROR -> StatusError.copy(alpha = 0.15f)
+                    },
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.clickable { onNavigateToStatus() }
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(
-                            text = "⚠️ PROTECTION IS WEAKENED",
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                        if (!health.isGuardRunning) {
-                            Text(
-                                text = "Anti-Tamper Guard is inactive. Settings can be accessed without password.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                            Button(
-                                onClick = {
-                                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    when (health.overallLevel) {
+                                        OverallProtectionLevel.PROTECTED -> StatusProtected
+                                        OverallProtectionLevel.DEGRADED -> StatusWarning
+                                        OverallProtectionLevel.STOPPED -> Color.Gray
+                                        OverallProtectionLevel.ERROR -> StatusError
                                     }
-                                    context.startActivity(intent)
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                            ) {
-                                Text("Re-Enable Guard")
+                                )
+                        )
+                        Text(
+                            text = when (health.overallLevel) {
+                                OverallProtectionLevel.PROTECTED -> "Active"
+                                OverallProtectionLevel.DEGRADED -> "Degraded"
+                                OverallProtectionLevel.STOPPED -> "Paused"
+                                OverallProtectionLevel.ERROR -> "Error"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = when (health.overallLevel) {
+                                OverallProtectionLevel.PROTECTED -> StatusProtected
+                                OverallProtectionLevel.DEGRADED -> StatusWarning
+                                OverallProtectionLevel.STOPPED -> MaterialTheme.colorScheme.onSurfaceVariant
+                                OverallProtectionLevel.ERROR -> StatusError
                             }
-                        } else if (health.vpnStatus !is VpnStatus.Active) {
-                            Text(
-                                text = "DNS VPN engine is not filtering traffic.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                            Button(onClick = onStartVpn) {
-                                Text("Start DNS Filtering")
-                            }
-                        }
+                        )
                     }
                 }
             }
 
-            // Honest Protection Status Badge
-            DashboardStatusBadge(health = health, onCheckDetails = onNavigateToStatus)
+            // Primary Protection Hero Module
+            ProtectionHeroCard(
+                health = health,
+                adultEnabled = adultEnabled,
+                onStartVpn = onStartVpn,
+                onStopVpn = onStopVpn,
+                onNavigateToStatus = onNavigateToStatus,
+                onFixGuard = {
+                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                }
+            )
 
             // Blocked Queries Counter Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        .padding(20.dp)
                 ) {
-                    Text(
-                        text = "BLOCKED DNS QUERIES",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "$blockedCount",
-                            fontSize = 38.sp,
+                            text = "BLOCKED REQUESTS",
+                            style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
+                            letterSpacing = 1.sp,
+                            color = MaterialTheme.colorScheme.primary
                         )
-                        OutlinedButton(
-                            onClick = { LockWebVpnService.resetCounter() },
-                            enabled = blockedCount > 0
-                        ) {
-                            Text("Reset")
+                        if (blockedCount > 0) {
+                            IconButton(
+                                onClick = { LockWebVpnService.resetCounter() },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Refresh,
+                                    contentDescription = "Reset Counter",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     Text(
-                        text = "Anonymous increment-only counter. Zero domain names stored.",
+                        text = "$blockedCount",
+                        fontSize = 42.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = (-1).sp
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = "Real-time anonymous filtering • Zero history stored",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            // Quick VPN Controls
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Button(
-                    onClick = onStartVpn,
-                    modifier = Modifier.weight(1f),
-                    enabled = health.vpnStatus !is VpnStatus.Active && health.vpnStatus !is VpnStatus.Starting
-                ) {
-                    Text("Start Protection")
-                }
-
-                OutlinedButton(
-                    onClick = onStopVpn,
-                    modifier = Modifier.weight(1f),
-                    enabled = health.vpnStatus is VpnStatus.Active || health.vpnStatus is VpnStatus.Degraded,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text("Pause Protection")
-                }
-            }
-
-            // Active Rules Quick View Card
+            // Custom Rules Quick Glance
             Card(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -245,73 +272,123 @@ fun DashboardScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Custom Block Rules (${userRules.size})",
-                            style = MaterialTheme.typography.titleSmall,
+                            text = "Active Rules",
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        OutlinedButton(onClick = onNavigateToBlocklist) {
-                            Text("View All", fontSize = 12.sp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onNavigateToBlocklist() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "View all (${userRules.size})",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Icon(
+                                Icons.Rounded.ArrowForward,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
                         }
                     }
 
                     if (userRules.isEmpty()) {
-                        Text(
-                            text = "No custom rules added yet. Tap '+' to add a website to block.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "No custom rules added yet. Tap '+' to block a domain.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
                     } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             userRules.take(3).forEach { rule ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(
-                                        text = rule.normalizedHost,
-                                        fontFamily = FontFamily.Monospace,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = rule.mode,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.outline
-                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = rule.normalizedHost,
+                                            fontFamily = FontFamily.Monospace,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Text(
+                                                text = rule.mode,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
 
-                    // Adult Content Status row
-                    Row(
+                    // Adult Filter status row
+                    Surface(
+                        color = if (adultEnabled) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(
-                                if (adultEnabled) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                else MaterialTheme.colorScheme.surfaceContainer
-                            )
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .clickable { onNavigateToBlocklist() }
                     ) {
-                        Text(
-                            text = "Adult Content Filter",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = if (adultEnabled) "Active 🔒" else "Disabled",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = if (adultEnabled) MaterialTheme.colorScheme.primary else Color.Gray
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Lock,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = if (adultEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "Adult Content Blocker",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            Text(
+                                text = if (adultEnabled) "Permanent Lock" else "Off",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (adultEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -326,7 +403,7 @@ fun DashboardScreen(
                     when (result) {
                         is AddRuleResult.Success -> {
                             showAddRuleDialog = false
-                            Toast.makeText(context, "Rule added for ${result.entity.normalizedHost}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Blocked ${result.entity.normalizedHost}", Toast.LENGTH_SHORT).show()
                         }
                         is AddRuleResult.Duplicate -> {
                             Toast.makeText(context, "Rule already exists for this domain", Toast.LENGTH_LONG).show()
@@ -343,57 +420,177 @@ fun DashboardScreen(
 }
 
 @Composable
-fun DashboardStatusBadge(
+private fun ProtectionHeroCard(
     health: ProtectionHealth,
-    onCheckDetails: () -> Unit
+    adultEnabled: Boolean,
+    onStartVpn: () -> Unit,
+    onStopVpn: () -> Unit,
+    onNavigateToStatus: () -> Unit,
+    onFixGuard: () -> Unit
 ) {
-    val (statusLabel, statusColor, desc) = when (health.overallLevel) {
-        OverallProtectionLevel.PROTECTED -> Triple("Protected", Color(0xFF2E7D32), "Active DNS filtering + Anti-Tamper Guard running.")
-        OverallProtectionLevel.DEGRADED -> Triple("Degraded", Color(0xFFED6C02), health.summaryText)
-        OverallProtectionLevel.STOPPED -> Triple("Stopped", Color.Gray, "Protection is currently idle.")
-        OverallProtectionLevel.ERROR -> Triple("Error", Color(0xFFD32F2F), health.summaryText)
+    val isRunning = health.vpnStatus is VpnStatus.Active
+    val hasAlert = !health.isGuardRunning || health.overallLevel == OverallProtectionLevel.DEGRADED
+
+    val cardColor = when {
+        hasAlert -> StatusWarning.copy(alpha = 0.12f)
+        isRunning -> StatusProtected.copy(alpha = 0.12f)
+        else -> MaterialTheme.colorScheme.surfaceVariant
     }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = statusColor.copy(alpha = 0.12f))
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(16.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(statusColor)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = "Status: $statusLabel",
-                        fontWeight = FontWeight.Bold,
-                        color = statusColor,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = desc,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = when {
+                            hasAlert -> StatusWarning.copy(alpha = 0.2f)
+                            isRunning -> StatusProtected.copy(alpha = 0.2f)
+                            else -> MaterialTheme.colorScheme.surfaceContainerHighest
+                        },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = when {
+                                    hasAlert -> Icons.Rounded.Warning
+                                    isRunning -> Icons.Rounded.Shield
+                                    else -> Icons.Rounded.Pause
+                                },
+                                contentDescription = null,
+                                tint = when {
+                                    hasAlert -> StatusWarning
+                                    isRunning -> StatusProtected
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                    }
+
+                    Column {
+                        Text(
+                            text = when {
+                                hasAlert && !health.isGuardRunning -> "Guard Disconnected"
+                                hasAlert -> "Protection Degraded"
+                                isRunning -> "Protection Active"
+                                else -> "Protection Paused"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = when {
+                                !health.isGuardRunning -> "Anti-tamper protection requires attention"
+                                isRunning -> "DNS inspection active • Zero battery impact"
+                                else -> "Filter is currently paused"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
-            OutlinedButton(onClick = onCheckDetails) {
-                Text("Layers", fontSize = 11.sp)
+            // Quick Actions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (!health.isGuardRunning) {
+                    Button(
+                        onClick = onFixGuard,
+                        colors = ButtonDefaults.buttonColors(containerColor = StatusWarning),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Enable Guard", fontWeight = FontWeight.Bold)
+                    }
+                } else if (!isRunning) {
+                    Button(
+                        onClick = onStartVpn,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Resume")
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = onStopVpn,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(Icons.Rounded.Pause, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Pause Protection")
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = onNavigateToStatus,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Audit Layers")
+                }
             }
+
+            // Mini Status Pills Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                StatusPill("VPN", health.vpnStatus is VpnStatus.Active, Modifier.weight(1f))
+                StatusPill("Guard", health.isGuardRunning, Modifier.weight(1f))
+                StatusPill("Admin", health.isDeviceAdminActive, Modifier.weight(1f))
+                StatusPill("Adult Lock", adultEnabled, Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusPill(label: String, active: Boolean, modifier: Modifier = Modifier) {
+    Surface(
+        color = if (active) StatusProtected.copy(alpha = 0.12f)
+        else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(if (active) StatusProtected else Color.Gray)
+            )
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (active) StatusProtected else MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

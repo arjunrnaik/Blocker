@@ -87,33 +87,33 @@ class LockWebVpnService : VpnService() {
 
         fun refreshAlwaysOnState(context: Context? = null) {
             val ctx = context ?: activeInstance?.applicationContext
-            if (ctx != null) {
-                try {
-                    val alwaysOnApp = android.provider.Settings.Secure.getString(ctx.contentResolver, "always_on_vpn_app")
-                    val isAlwaysOnSet = alwaysOnApp == ctx.packageName
-                    val lockdownVal = android.provider.Settings.Secure.getInt(ctx.contentResolver, "always_on_vpn_lockdown", 0)
-                    val isLockdownSet = isAlwaysOnSet && lockdownVal == 1
-
-                    val serviceAlwaysOn = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                        activeInstance?.isAlwaysOn() ?: false
-                    } else false
-
-                    val serviceLockdown = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                        activeInstance?.isLockdownEnabled() ?: false
-                    } else false
-
-                    _isAlwaysOn.value = isAlwaysOnSet || serviceAlwaysOn
-                    _isLockdownEnabled.value = isLockdownSet || serviceLockdown
-                    return
-                } catch (_: Exception) {}
-            }
+            var alwaysOnFound = false
+            var lockdownFound = false
 
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                 activeInstance?.let { service ->
-                    _isAlwaysOn.value = service.isAlwaysOn()
-                    _isLockdownEnabled.value = service.isLockdownEnabled()
+                    try {
+                        alwaysOnFound = service.isAlwaysOn()
+                        lockdownFound = service.isLockdownEnabled()
+                    } catch (_: Exception) {}
                 }
             }
+
+            if (ctx != null && !alwaysOnFound) {
+                try {
+                    val alwaysOnApp = android.provider.Settings.Secure.getString(ctx.contentResolver, "always_on_vpn_app")
+                    if (alwaysOnApp == ctx.packageName) {
+                        alwaysOnFound = true
+                        val lockdownVal = android.provider.Settings.Secure.getInt(ctx.contentResolver, "always_on_vpn_lockdown", 0)
+                        if (lockdownVal == 1) {
+                            lockdownFound = true
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+
+            _isAlwaysOn.value = alwaysOnFound
+            _isLockdownEnabled.value = lockdownFound
         }
 
         // Increment-only anonymous counter
@@ -209,12 +209,14 @@ class LockWebVpnService : VpnService() {
                 stopSelf()
                 return START_NOT_STICKY
             }
-            ACTION_START -> {
+            ACTION_START, VpnService.SERVICE_INTERFACE -> {
                 startVpn()
                 return START_STICKY
             }
             else -> {
-                return START_NOT_STICKY
+                // If started by system with any other action, ensure VPN runs
+                startVpn()
+                return START_STICKY
             }
         }
     }
@@ -282,6 +284,9 @@ class LockWebVpnService : VpnService() {
 
         // TUN is up and self-test passed
         _status.value = VpnStatus.Active
+
+        // Now that the TUN session is officially active, query Always-on status via VpnService
+        refreshAlwaysOnState(this)
 
         // Check upstream reachability asynchronously to detect offline or degraded state
         checkUpstreamReachability()
