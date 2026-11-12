@@ -30,6 +30,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +51,14 @@ fun ProtectionStatusScreen(
     onStopVpn: () -> Unit
 ) {
     val context = LocalContext.current
+
+    // Re-sync Device Admin and Always-On VPN status every time this screen is shown,
+    // so the user sees up-to-date state after returning from system settings.
+    LaunchedEffect(Unit) {
+        LockWebDeviceAdminReceiver.isActive(context)
+        LockWebVpnService.refreshAlwaysOnState(context)
+    }
+
     val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as? PowerManager }
     val isBatteryExempt = powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
 
@@ -161,7 +170,7 @@ fun ProtectionStatusScreen(
                 subtitle = "Android system-level guarantee that blocks connections if the VPN is down.",
                 isActive = health.isAlwaysOnVpn && health.isLockdownEnabled,
                 statusText = if (health.isAlwaysOnVpn && health.isLockdownEnabled) "Active & Locked ✅"
-                else if (health.isAlwaysOnVpn) "Always-On (Turn on Lockdown) ⚠️"
+                else if (health.isAlwaysOnVpn) "Enable 'Block connections without VPN' ⚠️"
                 else "Not Enabled ⚠️",
                 actionButton = {
                     OutlinedButton(
