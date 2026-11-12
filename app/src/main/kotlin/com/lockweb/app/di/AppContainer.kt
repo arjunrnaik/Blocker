@@ -27,7 +27,7 @@ class AppContainer(private val context: Context) {
     }
 
     val settingsRepository: SettingsRepository by lazy {
-        SettingsRepository(context.settingsDataStore)
+        SettingsRepository(context.settingsDataStore, context.filesDir)
     }
 
     val blocklistManager: BlocklistManager by lazy {

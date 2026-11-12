@@ -19,5 +19,11 @@ fun interface SecurityClock {
 }
 
 object SystemSecurityClock : SecurityClock {
-    override fun currentTimeMillis(): Long = System.currentTimeMillis()
+    override fun currentTimeMillis(): Long {
+        return try {
+            android.os.SystemClock.elapsedRealtime()
+        } catch (_: Throwable) {
+            System.currentTimeMillis()
+        }
+    }
 }

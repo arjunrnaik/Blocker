@@ -35,35 +35,32 @@ class FileRateLimitStore(
 ) : RateLimitStore {
 
     private val file get() = java.io.File(filesDir, fileName)
+    private val lock = Any()
 
-    override fun getFailedAttempts(): Int {
-        if (!file.exists()) return 0
-        return try {
+    private fun readState(): Pair<Int, Long> = synchronized(lock) {
+        if (!file.exists()) return Pair(0, 0L)
+        try {
             val lines = file.readLines()
-            lines.getOrNull(0)?.trim()?.toIntOrNull() ?: 0
+            val attempts = lines.getOrNull(0)?.trim()?.toIntOrNull() ?: 0
+            val lockedUntil = lines.getOrNull(1)?.trim()?.toLongOrNull() ?: 0L
+            Pair(attempts, lockedUntil)
         } catch (_: Exception) {
-            0
+            Pair(0, 0L)
         }
     }
 
-    override fun getLockedUntilMillis(): Long {
-        if (!file.exists()) return 0L
-        return try {
-            val lines = file.readLines()
-            lines.getOrNull(1)?.trim()?.toLongOrNull() ?: 0L
-        } catch (_: Exception) {
-            0L
-        }
-    }
+    override fun getFailedAttempts(): Int = readState().first
 
-    override fun saveState(failedAttempts: Int, lockedUntilMillis: Long) {
+    override fun getLockedUntilMillis(): Long = readState().second
+
+    override fun saveState(failedAttempts: Int, lockedUntilMillis: Long) = synchronized(lock) {
         try {
             file.parentFile?.mkdirs()
             file.writeText("$failedAttempts\n$lockedUntilMillis")
         } catch (_: Exception) {}
     }
 
-    override fun clear() {
+    override fun clear() = synchronized(lock) {
         if (file.exists()) {
             file.delete()
         }

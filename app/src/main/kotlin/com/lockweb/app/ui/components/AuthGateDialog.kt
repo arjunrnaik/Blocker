@@ -34,6 +34,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.SecureFlagPolicy
 import com.lockweb.app.security.AuthManager
 import com.lockweb.app.security.AuthResult
 import com.lockweb.app.security.RateLimiter
@@ -122,6 +124,7 @@ fun AuthGateDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = DialogProperties(securePolicy = SecureFlagPolicy.SECURE_ON),
         title = {
             Text(text = title, fontWeight = FontWeight.Bold)
         },

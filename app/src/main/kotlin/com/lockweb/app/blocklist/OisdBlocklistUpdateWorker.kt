@@ -8,12 +8,13 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.lockweb.app.LockWebApplication
 import com.lockweb.app.data.SettingsRepository
 import com.lockweb.app.data.settingsDataStore
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
-import java.net.URL
+import java.net.URI
 import java.util.concurrent.TimeUnit
 
 /**
@@ -63,6 +64,8 @@ class OisdBlocklistUpdateWorker(
                     timestamp = System.currentTimeMillis(),
                     domainCount = updatedDomains.size
                 )
+                // Automatically recompile active rules and push to VPN tunnel
+                (applicationContext as? LockWebApplication)?.container?.ruleRepository?.recompileAndPush()
                 Result.success()
             } else {
                 Result.retry()
@@ -75,7 +78,7 @@ class OisdBlocklistUpdateWorker(
     private fun downloadBlocklist(urlString: String): String? {
         var connection: HttpURLConnection? = null
         return try {
-            val url = URL(urlString)
+            val url = URI.create(urlString).toURL()
             connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.connectTimeout = 15_000

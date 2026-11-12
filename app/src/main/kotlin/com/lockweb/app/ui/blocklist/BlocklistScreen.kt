@@ -1,5 +1,6 @@
 package com.lockweb.app.ui.blocklist
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -299,8 +300,17 @@ fun BlocklistScreen() {
             onAddRule = { domain, mode, note ->
                 scope.launch {
                     val result = app.container.ruleRepository.addRule(domain, mode, note)
-                    if (result is AddRuleResult.Success) {
-                        showAddRuleDialog = false
+                    when (result) {
+                        is AddRuleResult.Success -> {
+                            showAddRuleDialog = false
+                            Toast.makeText(context, "Rule added for ${result.entity.normalizedHost}", Toast.LENGTH_SHORT).show()
+                        }
+                        is AddRuleResult.Duplicate -> {
+                            Toast.makeText(context, "Rule already exists for this domain", Toast.LENGTH_LONG).show()
+                        }
+                        is AddRuleResult.InvalidDomain -> {
+                            Toast.makeText(context, "Invalid domain: ${result.reason}", Toast.LENGTH_LONG).show()
+                        }
                     }
                 }
             },

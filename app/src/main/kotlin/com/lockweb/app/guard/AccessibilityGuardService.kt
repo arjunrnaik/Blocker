@@ -76,7 +76,8 @@ class AccessibilityGuardService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        GuardSessionManager.instance.setGuardRunning(false)
+        // Intentionally no-op: onInterrupt() is called for transient accessibility feedback interruptions.
+        // The service remains active and connected; true shutdown is handled in onDestroy().
     }
 
     override fun onDestroy() {

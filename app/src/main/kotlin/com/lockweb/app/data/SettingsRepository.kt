@@ -18,7 +18,10 @@ val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(na
 /**
  * Repository for user preferences and the permanent adult content blocker flag.
  */
-class SettingsRepository(private val dataStore: DataStore<Preferences>) {
+class SettingsRepository(
+    private val dataStore: DataStore<Preferences>,
+    private val filesDir: java.io.File? = null
+) {
 
     companion object {
         val KEY_ADULT_BLOCKLIST_ENABLED = booleanPreferencesKey("adult_blocklist_enabled")
@@ -40,7 +43,14 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
      * Observable stream indicating whether the adult content blocklist is permanently active.
      */
     val isAdultBlocklistEnabled: Flow<Boolean> = dataStore.data.map { prefs ->
-        prefs[KEY_ADULT_BLOCKLIST_ENABLED] ?: false
+        val prefVal = prefs[KEY_ADULT_BLOCKLIST_ENABLED] ?: false
+        val sealFile = filesDir?.let { java.io.File(it, "adult_lock.bin") }
+        val isSealed = sealFile?.exists() == true
+        if (isSealed && !prefVal) {
+            // Tamper recovery: DataStore was wiped or modified, re-assert lock
+            enableAdultBlocklistPermanently()
+        }
+        prefVal || isSealed
     }.distinctUntilChanged()
 
     val isOnboardingCompleted: Flow<Boolean> = dataStore.data.map { prefs ->
@@ -61,6 +71,11 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
      * There is no disable method, toggle-off, or reset for this flag.
      */
     suspend fun enableAdultBlocklistPermanently() {
+        filesDir?.let { dir ->
+            try {
+                java.io.File(dir, "adult_lock.bin").createNewFile()
+            } catch (_: Exception) {}
+        }
         dataStore.edit { prefs ->
             prefs[KEY_ADULT_BLOCKLIST_ENABLED] = true
         }

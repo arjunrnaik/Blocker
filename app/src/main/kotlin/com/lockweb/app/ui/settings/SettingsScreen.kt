@@ -13,12 +13,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -35,14 +37,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.SecureFlagPolicy
 import com.lockweb.app.LockWebApplication
 import com.lockweb.app.blocklist.ImportResult
 import com.lockweb.app.blocklist.RuleImportExport
 import com.lockweb.app.ui.components.AuthGateDialog
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun SettingsScreen(
@@ -65,6 +75,7 @@ fun SettingsScreen(
 
     var exportedJson by remember { mutableStateOf("") }
     var importJsonInput by remember { mutableStateOf("") }
+    var newRecoveryCodeToDisplay by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize()
@@ -252,7 +263,7 @@ fun SettingsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "LockWeb v1.0.0",
+                    text = "LockWeb v${com.lockweb.app.BuildConfig.VERSION_NAME}",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -342,6 +353,149 @@ fun SettingsScreen(
             },
             dismissButton = {
                 OutlinedButton(onClick = { showDnsDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Change Password Dialog (H-5)
+    if (showPasswordChangeDialog) {
+        var newPassword by remember { mutableStateOf("") }
+        var confirmNewPassword by remember { mutableStateOf("") }
+        var passwordVisible by remember { mutableStateOf(false) }
+        var changePasswordError by remember { mutableStateOf<String?>(null) }
+        var isChanging by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { if (!isChanging) showPasswordChangeDialog = false },
+            properties = DialogProperties(securePolicy = SecureFlagPolicy.SECURE_ON),
+            title = { Text("Change Master Password", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Enter a new master password (minimum 8 characters). A new emergency recovery code will be generated.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = newPassword,
+                        onValueChange = {
+                            newPassword = it
+                            changePasswordError = null
+                        },
+                        label = { Text("New Password") },
+                        singleLine = true,
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Text(if (passwordVisible) "Hide" else "Show", fontSize = 12.sp)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = confirmNewPassword,
+                        onValueChange = {
+                            confirmNewPassword = it
+                            changePasswordError = null
+                        },
+                        label = { Text("Confirm New Password") },
+                        singleLine = true,
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (changePasswordError != null) {
+                        Text(
+                            text = changePasswordError ?: "",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newPassword.length < 8) {
+                            changePasswordError = "Password must be at least 8 characters"
+                        } else if (newPassword != confirmNewPassword) {
+                            changePasswordError = "Passwords do not match"
+                        } else if (!isChanging) {
+                            isChanging = true
+                            scope.launch(Dispatchers.Default) {
+                                val generatedCode = app.container.authManager.setupCredentials(newPassword.toCharArray())
+                                withContext(Dispatchers.Main) {
+                                    isChanging = false
+                                    showPasswordChangeDialog = false
+                                    newRecoveryCodeToDisplay = generatedCode
+                                }
+                            }
+                        }
+                    },
+                    enabled = newPassword.isNotBlank() && confirmNewPassword.isNotBlank() && !isChanging
+                ) {
+                    Text(if (isChanging) "Updating..." else "Update Password")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showPasswordChangeDialog = false },
+                    enabled = !isChanging
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Display New Recovery Code Dialog after password change
+    if (newRecoveryCodeToDisplay != null) {
+        val codeToRecord = newRecoveryCodeToDisplay ?: ""
+        AlertDialog(
+            onDismissRequest = { /* user must acknowledge */ },
+            properties = DialogProperties(securePolicy = SecureFlagPolicy.SECURE_ON),
+            title = { Text("⚠️ Save Your New Recovery Code", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Your master password was updated. Below is your NEW 160-bit emergency recovery code. Your old recovery code is now invalid. Write this code down safely.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = codeToRecord,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+
+                    Text(
+                        "If you lose both your password and this code, factory resetting your device is the ONLY way to remove LockWeb.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        newRecoveryCodeToDisplay = null
+                        Toast.makeText(context, "Master password updated successfully", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("I Have Recorded This Code")
+                }
             }
         )
     }

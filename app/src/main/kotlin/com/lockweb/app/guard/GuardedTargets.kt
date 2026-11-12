@@ -121,6 +121,26 @@ object GuardedTargets {
                 Regex(".*PrivacySettings.*", RegexOption.IGNORE_CASE),
                 Regex(".*SecureDns.*", RegexOption.IGNORE_CASE)
             )
+        ),
+
+        // 8. Android System Package Installer / Uninstaller Dialogs
+        GuardRule(
+            id = "package_installer_google",
+            description = "Google Android Package Installer Uninstaller",
+            targetPackage = "com.google.android.packageinstaller",
+            classPatterns = listOf(
+                Regex(".*Uninstall.*", RegexOption.IGNORE_CASE),
+                Regex(".*PackageInstaller.*", RegexOption.IGNORE_CASE)
+            )
+        ),
+        GuardRule(
+            id = "package_installer_aosp",
+            description = "AOSP Package Installer Uninstaller",
+            targetPackage = "com.android.packageinstaller",
+            classPatterns = listOf(
+                Regex(".*Uninstall.*", RegexOption.IGNORE_CASE),
+                Regex(".*PackageInstaller.*", RegexOption.IGNORE_CASE)
+            )
         )
     )
 

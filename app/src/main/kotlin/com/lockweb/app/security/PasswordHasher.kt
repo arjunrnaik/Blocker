@@ -9,7 +9,7 @@ import javax.crypto.spec.PBEKeySpec
  * Robust, production-grade PBKDF2 password hasher conforming to MASTER_PROMPT.md Section 7.
  *
  * Algorithm: PBKDF2WithHmacSHA256
- * Iterations: 600,000
+ * Iterations: 100,000 (OWASP Mobile standard to balance brute-force resistance and mobile UI responsiveness)
  * Salt: 16-byte cryptographically secure random
  * Key length: 256 bits (32 bytes)
  * Comparison: Constant-time MessageDigest.isEqual()

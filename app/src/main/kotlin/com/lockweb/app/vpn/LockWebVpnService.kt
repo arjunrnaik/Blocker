@@ -34,6 +34,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -161,6 +162,11 @@ class LockWebVpnService : VpnService() {
 
     @Volatile
     private var isRunning = false
+    @Volatile
+    private var currentPrimaryDns = "1.1.1.1"
+    @Volatile
+    private var currentFallbackDns = "1.0.0.1"
+
     private val writeLock = Any()
     private val forwardLimiter = Semaphore(32)
     private val consecutiveFailures = AtomicInteger(0)
@@ -173,6 +179,21 @@ class LockWebVpnService : VpnService() {
         (application as? LockWebApplication)?.container?.let { container ->
             serviceScope.launch {
                 container.ruleRepository.recompileAndPush()
+            }
+            serviceScope.launch {
+                combine(
+                    container.settingsRepository.primaryDns,
+                    container.settingsRepository.fallbackDns
+                ) { primary, fallback ->
+                    Pair(primary, fallback)
+                }.collect { (primary, fallback) ->
+                    currentPrimaryDns = primary
+                    currentFallbackDns = fallback
+                    if (isRunning) {
+                        upstreamResolver = UpstreamResolver(this@LockWebVpnService, primary, fallback)
+                        cache.clear()
+                    }
+                }
             }
         }
     }
@@ -247,7 +268,7 @@ class LockWebVpnService : VpnService() {
         }
 
         tunInterface = pfd
-        upstreamResolver = UpstreamResolver(this)
+        upstreamResolver = UpstreamResolver(this, currentPrimaryDns, currentFallbackDns)
         isRunning = true
         consecutiveFailures.set(0)
 

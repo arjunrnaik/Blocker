@@ -16,5 +16,7 @@ local.properties
 .DS_Store
 Thumbs.db
 
-# Do NOT ignore the debug keystore
-!app/debug.keystore
+# Keystores
+*.keystore
+*.jks
+app/debug.keystore

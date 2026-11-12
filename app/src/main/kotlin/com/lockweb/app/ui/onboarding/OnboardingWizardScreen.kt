@@ -1,10 +1,12 @@
 package com.lockweb.app.ui.onboarding
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
+import android.view.WindowManager
 import androidx.compose.foundation.background
 import com.lockweb.app.admin.LockWebDeviceAdminReceiver
 import androidx.compose.foundation.layout.Arrangement
@@ -35,11 +37,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,8 +75,22 @@ fun OnboardingWizardScreen(
     val app = context.applicationContext as LockWebApplication
     val scope = rememberCoroutineScope()
 
-    var currentStep by remember { mutableIntStateOf(1) }
+    var currentStep by rememberSaveable { mutableIntStateOf(1) }
     val totalSteps = 6
+
+    // Secure sensitive screens (Password Creation & Recovery Code) against screenshots / recordings
+    val activity = context as? Activity
+    DisposableEffect(currentStep) {
+        if (currentStep == 2 || currentStep == 3) {
+            activity?.window?.setFlags(
+                WindowManager.LayoutParams.FLAG_SECURE,
+                WindowManager.LayoutParams.FLAG_SECURE
+            )
+        }
+        onDispose {
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+    }
 
     // Form state
     var password by remember { mutableStateOf("") }
@@ -80,10 +98,10 @@ fun OnboardingWizardScreen(
     var passwordVisible by remember { mutableStateOf(false) }
     var passwordError by remember { mutableStateOf<String?>(null) }
 
-    var recoveryCode by remember { mutableStateOf("") }
-    var recoverySavedChecked by remember { mutableStateOf(false) }
+    var recoveryCode by rememberSaveable { mutableStateOf("") }
+    var recoverySavedChecked by rememberSaveable { mutableStateOf(false) }
 
-    var enableAdultFilter by remember { mutableStateOf(true) }
+    var enableAdultFilter by rememberSaveable { mutableStateOf(true) }
     var isProcessing by remember { mutableStateOf(false) }
 
     Scaffold(
