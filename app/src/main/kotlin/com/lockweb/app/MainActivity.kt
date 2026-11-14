@@ -74,6 +74,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         LockWebDeviceAdminReceiver.isActive(this)
         LockWebVpnService.refreshAlwaysOnState(this)
+        com.lockweb.app.guard.GuardSessionManager.instance.syncGuardStatus(this)
     }
 
     private fun requestNotificationPermissionIfNeeded() {

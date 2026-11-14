@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -103,12 +104,97 @@ fun ProtectionStatusScreen(
                 isPrivateDnsActive = !lp?.privateDnsServerName.isNullOrBlank()
                 LockWebDeviceAdminReceiver.isActive(context)
                 LockWebVpnService.refreshAlwaysOnState(context)
+                com.lockweb.app.guard.GuardSessionManager.instance.syncGuardStatus(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
+    }
+
+    var showAccessibilityHelpDialog by remember { mutableStateOf(false) }
+
+    if (showAccessibilityHelpDialog) {
+        AlertDialog(
+            onDismissRequest = { showAccessibilityHelpDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Rounded.Security,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Enable Anti-Tamper Guard",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Anti-Tamper Guard requires Accessibility permission to detect and guard system settings against uninstallation or bypassing.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "If Android says 'Restricted setting':",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "1. First tap 'Open Accessibility' below, find LockWeb, and tap it (this logs the block in Android).\n2. If it says 'Restricted', tap 'Open App Info' below.\n3. Tap the 3 dots (⋮) in the top-right corner.\n4. Select 'Allow restricted settings' and confirm your PIN.\n5. Return to Accessibility and turn LockWeb ON.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                lineHeight = 18.sp
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context.startActivity(intent)
+                    },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Open Accessibility")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.parse("package:${context.packageName}")
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context.startActivity(intent)
+                    },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Open App Info")
+                }
+            },
+            shape = RoundedCornerShape(20.dp)
+        )
     }
 
     Scaffold(
@@ -174,10 +260,7 @@ fun ProtectionStatusScreen(
                         if (!health.isGuardRunning) {
                             Button(
                                 onClick = {
-                                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                    }
-                                    context.startActivity(intent)
+                                    showAccessibilityHelpDialog = true
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                             ) {

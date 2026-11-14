@@ -28,6 +28,27 @@ class GuardSessionManager(
         _isGuardRunning.value = running
     }
 
+    fun syncGuardStatus(context: android.content.Context) {
+        val isInstanceRunning = AccessibilityGuardService.instance != null
+        val isSystemEnabled = isAccessibilityServiceEnabled(context)
+        _isGuardRunning.value = isInstanceRunning || isSystemEnabled
+    }
+
+    private fun isAccessibilityServiceEnabled(context: android.content.Context): Boolean {
+        return try {
+            val am = context.getSystemService(android.content.Context.ACCESSIBILITY_SERVICE) as? android.view.accessibility.AccessibilityManager
+                ?: return false
+            val enabledServices = am.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+                ?: return false
+            enabledServices.any {
+                it.resolveInfo?.serviceInfo?.packageName == context.packageName &&
+                it.resolveInfo?.serviceInfo?.name == AccessibilityGuardService::class.java.name
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     /**
      * Grants temporary authorization window (default 60 seconds).
      */
